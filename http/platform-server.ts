@@ -16,6 +16,7 @@ import { registerPlatformAdminUpdatesRoutes } from './routes/platform-admin-upda
 import { registerPlatformAuthRoutes } from './routes/platform-auth.routes.js'
 import { registerPlatformPingRoutes } from './routes/platform-ping.routes.js'
 import { registerPlatformUpdateRoutes } from './routes/platform-update.routes.js'
+import { ensureProductUpdateSubdirs, migrateLegacyRootUpdatesToBazar } from './platform-updates-dir.js'
 
 export type StartPlatformServerOptions = {
   dbPath: string
@@ -62,12 +63,12 @@ export async function startPlatformServer(opts: StartPlatformServerOptions): Pro
 
   await registerPlatformPingRoutes(app)
 
-  // Serve Electron auto-update artifacts under /updates/ and expose a JSON manifest
-  // endpoint at /api/platform/update/latest for the admin UI. The directory is
-  // created if missing so ops can SFTP a new `latest.yml` into it at any time.
+  // Per-product folders under `updatesDir` are served at `/updates/<product>/…`
   const updatesDir = path.resolve(opts.updatesDir ?? path.join(process.cwd(), 'platform-data', 'updates'))
   try {
     fs.mkdirSync(updatesDir, { recursive: true })
+    ensureProductUpdateSubdirs(updatesDir)
+    migrateLegacyRootUpdatesToBazar(updatesDir)
   } catch {
     // non-fatal: route still returns `empty: true` and static falls through
   }

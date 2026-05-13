@@ -8,6 +8,8 @@ import type {
   PlatformUpdatePublishResponse,
   PlatformUpdateUploadResponse,
 } from '../../shared/types/app-update.js'
+import { parsePlatformProductKey } from '../../shared/platform-product.js'
+import { resolveUpdatesDirForProduct } from '../platform-updates-dir.js'
 
 /**
  * Allowed artifact extensions. `electron-builder` on Windows emits `.exe`,
@@ -114,7 +116,7 @@ function listArtifactFiles(dir: string): PlatformUpdateFileEntry[] {
 }
 
 export type RegisterPlatformAdminUpdatesRoutesOptions = {
-  /** Absolute path to the directory that holds `latest.yml` + installer files. */
+  /** Absolute parent directory; each product uses a subfolder (`bazar_one`, `sufra_lite`). */
   updatesDir: string
   /** Max allowed size per uploaded file, in bytes. Defaults to 1 GiB. */
   maxFileBytes?: number
@@ -127,12 +129,18 @@ export async function registerPlatformAdminUpdatesRoutes(
   const { updatesDir } = opts
   const maxFileBytes = opts.maxFileBytes ?? 1024 * 1024 * 1024 // 1 GiB
 
+  function scopedDir(query: unknown): string {
+    const q = query as { product?: string }
+    return resolveUpdatesDirForProduct(updatesDir, parsePlatformProductKey(q?.product))
+  }
+
   /** List files currently in the updates folder. */
-  app.get('/api/platform/admin/updates/files', async (_req, reply) => {
+  app.get('/api/platform/admin/updates/files', async (req, reply) => {
+    const dir = scopedDir(req.query)
     const body: PlatformUpdateFilesResponse = {
-      updatesDir,
-      directoryExists: fs.existsSync(updatesDir),
-      files: listArtifactFiles(updatesDir),
+      updatesDir: dir,
+      directoryExists: fs.existsSync(dir),
+      files: listArtifactFiles(dir),
     }
     return reply.send(body)
   })
@@ -148,8 +156,10 @@ export async function registerPlatformAdminUpdatesRoutes(
       return reply.status(400).send({ error: 'EXPECTED_MULTIPART' })
     }
 
+    const dir = scopedDir(req.query)
+
     try {
-      fs.mkdirSync(updatesDir, { recursive: true })
+      fs.mkdirSync(dir, { recursive: true })
     } catch (e) {
       return reply.status(500).send({
         error: 'MKDIR_FAILED',
@@ -171,7 +181,7 @@ export async function registerPlatformAdminUpdatesRoutes(
           continue
         }
 
-        const finalPath = path.join(updatesDir, safeName)
+        const finalPath = path.join(dir, safeName)
         const tmpPath = `${finalPath}.part`
         const hash = crypto.createHash('sha512')
         let bytes = 0
@@ -225,7 +235,7 @@ export async function registerPlatformAdminUpdatesRoutes(
     const body: PlatformUpdateUploadResponse = {
       accepted,
       rejected,
-      files: listArtifactFiles(updatesDir),
+      files: listArtifactFiles(dir),
     }
     return reply.send(body)
   })
@@ -242,6 +252,7 @@ export async function registerPlatformAdminUpdatesRoutes(
   app.post<{
     Body: { installer?: string; version?: string; releaseDate?: string }
   }>('/api/platform/admin/updates/publish', async (req, reply) => {
+    const dir = scopedDir(req.query)
     const installerRaw = typeof req.body?.installer === 'string' ? req.body.installer : ''
     const safeName = sanitizeFilename(installerRaw)
     if (!safeName) {
@@ -255,7 +266,7 @@ export async function registerPlatformAdminUpdatesRoutes(
         message: `Publish target must be one of ${[...INSTALLER_EXT].join(', ')}`,
       })
     }
-    const installerPath = path.join(updatesDir, safeName)
+    const installerPath = path.join(dir, safeName)
     if (!fs.existsSync(installerPath)) {
       return reply.status(404).send({ error: 'INSTALLER_NOT_FOUND' })
     }
@@ -302,7 +313,7 @@ export async function registerPlatformAdminUpdatesRoutes(
       releaseDateIso,
     })
 
-    const ymlPath = path.join(updatesDir, 'latest.yml')
+    const ymlPath = path.join(dir, 'latest.yml')
     const tmpPath = `${ymlPath}.part`
     try {
       fs.writeFileSync(tmpPath, yml, 'utf8')
@@ -321,7 +332,7 @@ export async function registerPlatformAdminUpdatesRoutes(
       sha512: hashed.sha512Base64,
       sizeBytes: hashed.size,
       releaseDate: releaseDateIso,
-      files: listArtifactFiles(updatesDir),
+      files: listArtifactFiles(dir),
     }
     return reply.send(body)
   })
@@ -330,11 +341,12 @@ export async function registerPlatformAdminUpdatesRoutes(
   app.delete<{ Params: { name: string } }>(
     '/api/platform/admin/updates/files/:name',
     async (req, reply) => {
+      const dir = scopedDir(req.query)
       const safeName = sanitizeFilename(req.params.name)
       if (!safeName) {
         return reply.status(400).send({ error: 'INVALID_NAME' })
       }
-      const target = path.join(updatesDir, safeName)
+      const target = path.join(dir, safeName)
       if (!fs.existsSync(target)) {
         return reply.status(404).send({ error: 'NOT_FOUND' })
       }
@@ -351,9 +363,9 @@ export async function registerPlatformAdminUpdatesRoutes(
         })
       }
       const body: PlatformUpdateFilesResponse = {
-        updatesDir,
-        directoryExists: fs.existsSync(updatesDir),
-        files: listArtifactFiles(updatesDir),
+        updatesDir: dir,
+        directoryExists: fs.existsSync(dir),
+        files: listArtifactFiles(dir),
       }
       return reply.send(body)
     },

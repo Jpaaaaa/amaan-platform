@@ -18,6 +18,8 @@ function stripSecureFromSetCookie(proxyRes: IncomingMessage): void {
 export default defineConfig({
   plugins: [react()],
   root,
+  /** Repo-root `public/` (e.g. `amanlogo.png`) — `web/public` is unused. */
+  publicDir: path.join(repoRoot, 'public'),
   base: '/',
   build: {
     outDir: path.join(root, 'dist'),

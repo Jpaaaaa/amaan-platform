@@ -1,5 +1,6 @@
 import type { Database as SqlDatabase } from 'sql.js'
 import { addMonths } from 'date-fns'
+import type { PlatformProductKey } from '../shared/platform-product.js'
 import type {
   PlatformDevicePublicStatus,
   PlatformDeviceRow,
@@ -67,7 +68,10 @@ export function computeExpiryFromTier(issuedAtMs: number, tier: PlatformLicenseT
 
 function rowFromStmt(row: Record<string, unknown> | undefined): PlatformDeviceRow | null {
   if (!row) return null
+  const pk = String(row.product_key)
+  if (pk !== 'bazar_one' && pk !== 'sufra_lite') return null
   return {
+    productKey: pk as PlatformProductKey,
     machineId: String(row.machine_id),
     label: row.label != null ? String(row.label) : null,
     tier: row.tier as PlatformLicenseTier,
@@ -84,11 +88,12 @@ function rowFromStmt(row: Record<string, unknown> | undefined): PlatformDeviceRo
   }
 }
 
-export function listDevices(database: SqlDatabase): PlatformDeviceRow[] {
+export function listDevices(database: SqlDatabase, productKey: PlatformProductKey): PlatformDeviceRow[] {
   const stmt = database.prepare(
-    `SELECT machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms
-     FROM platform_devices ORDER BY updated_at_ms DESC`,
+    `SELECT product_key, machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms
+     FROM platform_devices WHERE product_key = ? ORDER BY updated_at_ms DESC`,
   )
+  stmt.bind([productKey])
   const out: PlatformDeviceRow[] = []
   while (stmt.step()) {
     const r = rowFromStmt(stmt.getAsObject())
@@ -98,12 +103,16 @@ export function listDevices(database: SqlDatabase): PlatformDeviceRow[] {
   return out
 }
 
-export function findDevice(database: SqlDatabase, machineId: string): PlatformDeviceRow | null {
+export function findDevice(
+  database: SqlDatabase,
+  productKey: PlatformProductKey,
+  machineId: string,
+): PlatformDeviceRow | null {
   const stmt = database.prepare(
-    `SELECT machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms
-     FROM platform_devices WHERE machine_id = ?`,
+    `SELECT product_key, machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms
+     FROM platform_devices WHERE product_key = ? AND machine_id = ?`,
   )
-  stmt.bind([machineId.trim()])
+  stmt.bind([productKey, machineId.trim()])
   let row: PlatformDeviceRow | null = null
   if (stmt.step()) {
     row = rowFromStmt(stmt.getAsObject())
@@ -113,6 +122,7 @@ export function findDevice(database: SqlDatabase, machineId: string): PlatformDe
 }
 
 export type UpsertDeviceInput = {
+  productKey: PlatformProductKey
   machineId: string
   label?: string | null
   tier: PlatformLicenseTier
@@ -132,7 +142,8 @@ export function upsertDevice(database: SqlDatabase, input: UpsertDeviceInput): P
   assertTier(input.tier)
   const now = Date.now()
   const mid = input.machineId.trim()
-  const existing = findDevice(database, mid)
+  const pk = input.productKey
+  const existing = findDevice(database, pk, mid)
 
   const createdAtMs = existing?.createdAtMs ?? now
   let expiresAtMs: number | null
@@ -169,9 +180,9 @@ export function upsertDevice(database: SqlDatabase, input: UpsertDeviceInput): P
   }
 
   database.run(
-    `INSERT INTO platform_devices (machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
-     ON CONFLICT(machine_id) DO UPDATE SET
+    `INSERT INTO platform_devices (product_key, machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms)
+     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)
+     ON CONFLICT(product_key, machine_id) DO UPDATE SET
        label = excluded.label,
        tier = excluded.tier,
        expires_at_ms = excluded.expires_at_ms,
@@ -180,21 +191,25 @@ export function upsertDevice(database: SqlDatabase, input: UpsertDeviceInput): P
        notes = excluded.notes,
        rolling_max_ms = excluded.rolling_max_ms,
        revoked = 0`,
-    [mid, label, input.tier, expiresAtMs, lastSyncAtMs, createdAtMs, now, notes, rollingMaxMsOut],
+    [pk, mid, label, input.tier, expiresAtMs, lastSyncAtMs, createdAtMs, now, notes, rollingMaxMsOut],
   )
 
-  const r = findDevice(database, mid)
+  const r = findDevice(database, pk, mid)
   if (!r) throw new Error('UPSERT_FAILED')
   return r
 }
 
-export function setRevoked(database: SqlDatabase, machineId: string, revoked: boolean): void {
+export function setRevoked(
+  database: SqlDatabase,
+  productKey: PlatformProductKey,
+  machineId: string,
+  revoked: boolean,
+): void {
   const now = Date.now()
-  database.run(`UPDATE platform_devices SET revoked = ?, updated_at_ms = ? WHERE machine_id = ?`, [
-    revoked ? 1 : 0,
-    now,
-    machineId.trim(),
-  ])
+  database.run(
+    `UPDATE platform_devices SET revoked = ?, updated_at_ms = ? WHERE product_key = ? AND machine_id = ?`,
+    [revoked ? 1 : 0, now, productKey, machineId.trim()],
+  )
 }
 
 export type AdminDevicePatch = {
@@ -212,11 +227,12 @@ export type AdminDevicePatch = {
  */
 export function updateDeviceAdmin(
   database: SqlDatabase,
+  productKey: PlatformProductKey,
   machineId: string,
   patch: AdminDevicePatch,
 ): PlatformDeviceRow {
   const mid = machineId.trim()
-  const existing = findDevice(database, mid)
+  const existing = findDevice(database, productKey, mid)
   if (!existing) throw new Error('NOT_FOUND')
 
   const tier = patch.tier !== undefined ? patch.tier : existing.tier
@@ -247,29 +263,36 @@ export function updateDeviceAdmin(
   const now = Date.now()
 
   database.run(
-    `UPDATE platform_devices SET tier = ?, expires_at_ms = ?, last_sync_at_ms = ?, label = ?, notes = ?, rolling_max_ms = ?, updated_at_ms = ? WHERE machine_id = ?`,
-    [tier, expiresAtMs, lastSyncAtMs, label, notes, rollingMaxMs, now, mid],
+    `UPDATE platform_devices SET tier = ?, expires_at_ms = ?, last_sync_at_ms = ?, label = ?, notes = ?, rolling_max_ms = ?, updated_at_ms = ? WHERE product_key = ? AND machine_id = ?`,
+    [tier, expiresAtMs, lastSyncAtMs, label, notes, rollingMaxMs, now, productKey, mid],
   )
 
-  const row = findDevice(database, mid)
+  const row = findDevice(database, productKey, mid)
   if (!row) throw new Error('UPDATE_FAILED')
   return row
 }
 
-export function deleteDevice(database: SqlDatabase, machineId: string): boolean {
+export function deleteDevice(
+  database: SqlDatabase,
+  productKey: PlatformProductKey,
+  machineId: string,
+): boolean {
   const mid = machineId.trim()
-  if (!findDevice(database, mid)) return false
-  database.run(`DELETE FROM platform_devices WHERE machine_id = ?`, [mid])
-  return findDevice(database, mid) === null
+  if (!findDevice(database, productKey, mid)) return false
+  database.run(`DELETE FROM platform_devices WHERE product_key = ? AND machine_id = ?`, [productKey, mid])
+  return findDevice(database, productKey, mid) === null
 }
 
-export function recordSync(database: SqlDatabase, machineId: string): void {
+export function recordSync(
+  database: SqlDatabase,
+  productKey: PlatformProductKey,
+  machineId: string,
+): void {
   const now = Date.now()
-  database.run(`UPDATE platform_devices SET last_sync_at_ms = ?, updated_at_ms = ? WHERE machine_id = ?`, [
-    now,
-    now,
-    machineId.trim(),
-  ])
+  database.run(
+    `UPDATE platform_devices SET last_sync_at_ms = ?, updated_at_ms = ? WHERE product_key = ? AND machine_id = ?`,
+    [now, now, productKey, machineId.trim()],
+  )
 }
 
 function daysBetween(fromMs: number, toMs: number): number {

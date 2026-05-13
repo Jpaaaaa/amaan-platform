@@ -1,3 +1,5 @@
+import type { PlatformProductKey } from '../platform-product.js'
+
 export type PlatformLicenseTier = '5d' | '15d' | '1m' | '2m' | 'lifetime' | 'custom'
 
 export type PlatformDevicePublicStatus =
@@ -8,6 +10,7 @@ export type PlatformDevicePublicStatus =
   | 'active'
 
 export type PlatformDeviceRow = {
+  productKey: PlatformProductKey
   machineId: string
   label: string | null
   tier: PlatformLicenseTier

@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { PlatformLicenseTier } from '../../shared/types/platform-devices.js'
 import { persistPlatformDb, getPlatformDb } from '../../db/platform-db.js'
+import { parsePlatformProductKey, type PlatformProductKey } from '../../shared/platform-product.js'
 import {
   assertTier,
   deleteDevice,
@@ -12,6 +13,18 @@ import {
   updateDeviceAdmin,
   upsertDevice,
 } from '../../services/platform-device.service.js'
+
+function productFromQuery(query: unknown): PlatformProductKey {
+  const q = query as { product?: string }
+  return parsePlatformProductKey(q?.product)
+}
+
+function productFromBody(body: unknown): PlatformProductKey {
+  if (body && typeof body === 'object' && 'product' in body) {
+    return parsePlatformProductKey(String((body as Record<string, unknown>).product))
+  }
+  return parsePlatformProductKey(undefined)
+}
 
 /** Own-property check + coerce string JSON numbers (some proxies/clients send strings). */
 function readRollingMaxMsFromBody(body: unknown): { v: number | null | undefined; err?: string } {
@@ -28,8 +41,9 @@ function readRollingMaxMsFromBody(body: unknown): { v: number | null | undefined
 }
 
 export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/api/platform/admin/devices', async (_req, reply) => {
-    const rows = listDevices(getPlatformDb())
+  app.get('/api/platform/admin/devices', async (req, reply) => {
+    const productKey = productFromQuery(req.query)
+    const rows = listDevices(getPlatformDb(), productKey)
     const now = Date.now()
     const enriched = rows.map((r) => {
       const ev = evaluateDevice(r, now)
@@ -55,8 +69,11 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
       customValidForMs?: number
       /** Per-device offline grace (ms); null = server default */
       rollingMaxMs?: number | null
+      /** `bazar_one` (default) or `sufra_lite` */
+      product?: string
     }
   }>('/api/platform/admin/devices', async (req, reply) => {
+    const productKey = productFromBody(req.body)
     const machineId = typeof req.body?.machineId === 'string' ? req.body.machineId.trim() : ''
     const tierRaw = typeof req.body?.tier === 'string' ? req.body.tier.trim() : ''
     if (!machineId || !tierRaw) {
@@ -79,7 +96,7 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
     const rollingMaxMs = rollingRead.v
 
     const db = getPlatformDb()
-    const existing = findDevice(db, machineId)
+    const existing = findDevice(db, productKey, machineId)
     const needsCustomDuration = tierRaw === 'custom' && (renew || !existing)
     if (needsCustomDuration) {
       if (customValidForMs == null || customValidForMs <= 0) {
@@ -93,6 +110,7 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
     let row
     try {
       row = upsertDevice(db, {
+        productKey,
         machineId,
         label: req.body?.label,
         tier: tierRaw as PlatformLicenseTier,
@@ -125,9 +143,10 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
       rollingMaxMs?: number | null
     }
   }>('/api/platform/admin/devices/:machineId', async (req, reply) => {
+    const productKey = productFromQuery(req.query)
     const mid = req.params.machineId.trim()
     const body = req.body ?? {}
-    const patch: Parameters<typeof updateDeviceAdmin>[2] = {}
+    const patch: Parameters<typeof updateDeviceAdmin>[3] = {}
 
     if ('label' in body) patch.label = body.label === null ? null : String(body.label)
     if ('notes' in body) patch.notes = body.notes === null ? null : String(body.notes)
@@ -166,7 +185,7 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
     }
 
     try {
-      const row = updateDeviceAdmin(getPlatformDb(), mid, patch)
+      const row = updateDeviceAdmin(getPlatformDb(), productKey, mid, patch)
       persistPlatformDb()
       return reply.send({ device: row })
     } catch (e) {
@@ -189,8 +208,9 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
   app.delete<{
     Params: { machineId: string }
   }>('/api/platform/admin/devices/:machineId', async (req, reply) => {
+    const productKey = productFromQuery(req.query)
     const mid = req.params.machineId.trim()
-    const ok = deleteDevice(getPlatformDb(), mid)
+    const ok = deleteDevice(getPlatformDb(), productKey, mid)
     if (!ok) return reply.status(404).send({ error: 'NOT_FOUND' })
     persistPlatformDb()
     return reply.send({ ok: true })
@@ -200,12 +220,13 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
     Params: { machineId: string }
     Body: { revoked?: boolean }
   }>('/api/platform/admin/devices/:machineId/revoke', async (req, reply) => {
+    const productKey = productFromQuery(req.query)
     const mid = req.params.machineId.trim()
     const revoked = Boolean(req.body?.revoked)
-    const existing = findDevice(getPlatformDb(), mid)
+    const existing = findDevice(getPlatformDb(), productKey, mid)
     if (!existing) return reply.status(404).send({ error: 'NOT_FOUND' })
-    setRevoked(getPlatformDb(), mid, revoked)
+    setRevoked(getPlatformDb(), productKey, mid, revoked)
     persistPlatformDb()
-    return reply.send({ ok: true, device: findDevice(getPlatformDb(), mid) })
+    return reply.send({ ok: true, device: findDevice(getPlatformDb(), productKey, mid) })
   })
 }

@@ -20,9 +20,18 @@ async function main(): Promise<void> {
     webDist: fs.existsSync(webDistPath) ? webDistPath : undefined,
     updatesDir,
   })
+  const hasWebDist = fs.existsSync(webDistPath)
   console.log(`Platform API listening on http://0.0.0.0:${port}`)
   console.log(`DB: ${dbPath}`)
   console.log(`Updates dir: ${updatesDir}`)
+  console.log('')
+  console.log(`  Health:  http://127.0.0.1:${port}/api/platform/health`)
+  if (hasWebDist) {
+    console.log(`  LM UI:   http://127.0.0.1:${port}/  (static web/dist)`)
+  } else {
+    console.log(`  LM UI:   http://localhost:3851/  (with npm run dev)  —  or npm run platform:web:build for http://127.0.0.1:${port}/`)
+  }
+  console.log('')
 }
 
 main().catch((e) => {
