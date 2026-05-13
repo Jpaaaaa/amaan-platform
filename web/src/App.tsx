@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useState } from 'react'
-import { formatLicenseRemainDaysMinutes, formatLicenseRemainMs } from '@shared/format-license-countdown'
+import type { PlatformProductKey } from '@shared/platform-product'
 import { LoginPage } from './LoginPage'
 import { ReleasesTab } from './ReleasesTab'
 import './styles.css'
 
 type SessionState = 'loading' | 'anon' | 'ok'
 
-type TabId = 'devices' | 'releases'
+type TabId = 'devices' | 'releases' | 'settings'
+
+function productQuery(p: PlatformProductKey): string {
+  return `?product=${encodeURIComponent(p)}`
+}
 
 /* ─── Types ─── */
 const JSON_HEADERS: HeadersInit = { 'Content-Type': 'application/json' }
@@ -73,97 +77,82 @@ function fmtDate(ms: number | null) {
   if (ms == null) return '—'
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
-function statusBadgeClass(status: string, revoked: boolean) {
-  if (revoked) return 'badge badge--revoked'
-  const s = status.toLowerCase()
-  if (s.includes('lifetime')) return 'badge badge--lifetime'
-  if (s.includes('active') || s.includes('ok')) return 'badge badge--active'
-  if (s.includes('expir')) return 'badge badge--expired'
-  return 'badge badge--default'
-}
-function statusLabel(status: string, revoked: boolean) {
-  if (revoked) return 'Revoked'
-  const s = status.toLowerCase()
-  if (s.includes('lifetime')) return 'Lifetime'
-  if (s.includes('active') || s.includes('ok')) return 'Active'
-  if (s.includes('expir')) return 'Expired'
-  return status
-}
 
-/* ─── SVG Icons ─── */
+/* ─── SVG Icons (M3 Style) ─── */
 const Ico = {
   plus: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+  ),
+  devices: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+      <line x1="8" y1="21" x2="16" y2="21"></line>
+      <line x1="12" y1="17" x2="12" y2="21"></line>
+    </svg>
+  ),
+  releases: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+      <line x1="12" y1="22.08" x2="12" y2="12"></line>
+    </svg>
+  ),
+  settings: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"></circle>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
     </svg>
   ),
   refresh: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M13.5 2.5A6.5 6.5 0 1 1 7 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      <path d="M7 1.5 9.5 4 7 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <polyline points="1 20 1 14 7 14"></polyline>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
     </svg>
   ),
   edit: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M9.5 1.5 12.5 4.5 5 12H2v-3L9.5 1.5Z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
     </svg>
   ),
   lock: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="2" y="6.5" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M4.5 6.5V4a2.5 2.5 0 0 1 5 0v2.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
     </svg>
   ),
   unlock: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="2" y="6.5" width="10" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M4.5 6.5V4a2.5 2.5 0 0 1 5 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 9.9-1"></path>
     </svg>
   ),
   trash: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M1.5 3.5h11M5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1M11.5 3.5 11 11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1L2.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
     </svg>
   ),
   exclamation: (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-    </svg>
-  ),
-  chevronRight: (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-  device: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="1" width="12" height="14" rx="2" stroke="white" strokeWidth="1.4"/>
-      <path d="M6 13h4" stroke="white" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  ),
-  key: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="5.5" cy="8" r="3.5" stroke="white" strokeWidth="1.4"/>
-      <path d="M8.5 8h6M12.5 8v2" stroke="white" strokeWidth="1.4" strokeLinecap="round"/>
+      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
   ),
   empty: (
     <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-      <rect x="8" y="4" width="28" height="36" rx="4" stroke="currentColor" strokeWidth="1.6"/>
-      <path d="M16 16h16M16 22h16M16 28h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      <circle cx="36" cy="36" r="8" fill="var(--bg-secondary)" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M33 36h6M36 33v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  ),
-  save: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M2 2.5A.5.5 0 0 1 2.5 2h9l2.5 2.5V13.5a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5V2.5Z" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M5 2v3.5h6V2" stroke="currentColor" strokeWidth="1.4"/>
-      <rect x="4" y="9" width="8" height="5" rx="0.5" stroke="currentColor" strokeWidth="1.4"/>
+      <rect x="8" y="4" width="28" height="36" rx="4" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M16 16h16M16 22h16M16 28h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <circle cx="36" cy="36" r="8" fill="var(--bg-secondary)" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M33 36h6M36 33v6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
     </svg>
   ),
 }
+
 
 /* ─── Field component (iOS grouped list cell) ─── */
 function Field({
@@ -178,101 +167,28 @@ function Field({
   )
 }
 
-/* ─── Device Card ─── */
-function DeviceCard({
-  d, nowTick, onEdit, onRevoke, onDelete,
-}: {
-  d: DeviceRow
-  nowTick: number
-  onEdit: (d: DeviceRow) => void
-  onRevoke: (id: string, rev: boolean) => void
-  onDelete: (id: string) => void
-}) {
+/* ─── Modern Device Card ─── */
+function DeviceCard({ d, onOpen }: { d: DeviceRow; onOpen: (d: DeviceRow) => void }) {
+  const name = d.label?.trim() ? d.label : 'Unnamed Device'
+  const isRevoked = d.revoked
   return (
-    <article className={`device-card${d.revoked ? ' device-card--revoked' : ''}`}>
-      {/* Head */}
-      <div className="device-card__head">
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="device-card__name">{d.label ?? 'Unnamed device'}</div>
-          <div className="device-card__id">{d.machineId}</div>
-        </div>
-        <span className={statusBadgeClass(d.computedStatus, d.revoked)}>
-          <span className="badge__dot" />
-          {statusLabel(d.computedStatus, d.revoked)}
-        </span>
+    <button
+      type="button"
+      className="device-card-modern"
+      onClick={() => onOpen(d)}
+    >
+      <div className="device-card-modern__info">
+        <span className="device-card-modern__name">{name}</span>
+        <span className="device-card-modern__id">{d.machineId}</span>
       </div>
-
-      {/* Meta 2×2 grid */}
-      <div className="device-card__meta">
-        <div className="device-meta">
-          <div className="device-meta__label">Tier</div>
-          <div className="device-meta__value">{d.tier}</div>
-        </div>
-        <div className="device-meta">
-          <div className="device-meta__label">Expires</div>
-          <div className="device-meta__value">{fmtDate(d.expiresAtMs)}</div>
-          {d.expiresAtMs != null ? (
-            <div className="device-meta__countdown" aria-live="polite">
-              {formatLicenseRemainMs(d.expiresAtMs - nowTick)}
-            </div>
-          ) : null}
-        </div>
-        <div className="device-meta">
-          <div className="device-meta__label">Rolling</div>
-          <div className="device-meta__value">{fmtDate(d.rollingDeadlineMs)}</div>
-          <div className="device-meta__countdown" aria-live="polite">
-            {formatLicenseRemainMs(d.rollingDeadlineMs - nowTick)}
-          </div>
-        </div>
-        <div className="device-meta">
-          <div className="device-meta__label">Last sync</div>
-          <div className="device-meta__value">{fmtDate(d.lastSyncAtMs)}</div>
-        </div>
-        <div className="device-meta">
-          <div className="device-meta__label">Offline max</div>
-          <div className="device-meta__value">
-            {d.rollingMaxMs != null && Number.isFinite(d.rollingMaxMs)
-              ? formatLicenseRemainDaysMinutes(d.rollingMaxMs)
-              : d.effectiveRollingMaxMs != null && Number.isFinite(d.effectiveRollingMaxMs)
-                ? `Default (${formatLicenseRemainDaysMinutes(d.effectiveRollingMaxMs)})`
-                : 'Server default'}
-          </div>
-        </div>
+      <div className={`status-badge ${isRevoked ? 'status-badge--revoked' : 'status-badge--active'}`}>
+        <span className="status-badge__dot" />
+        {isRevoked ? 'Revoked' : 'Active'}
       </div>
-
-      {/* Actions */}
-      <div className="device-card__actions">
-        <button
-          type="button"
-          className="act-btn act-btn--blue"
-          onClick={() => onEdit(d)}
-          aria-label="Edit"
-        >
-          {Ico.edit}
-          Edit
-        </button>
-        <button
-          type="button"
-          className={d.revoked ? 'act-btn act-btn--green' : 'act-btn act-btn--orange'}
-          onClick={() => onRevoke(d.machineId, d.revoked)}
-          aria-label={d.revoked ? 'Restore' : 'Revoke'}
-        >
-          {d.revoked ? Ico.unlock : Ico.lock}
-          {d.revoked ? 'Restore' : 'Revoke'}
-        </button>
-        <button
-          type="button"
-          className="act-btn act-btn--red"
-          onClick={() => onDelete(d.machineId)}
-          aria-label="Delete"
-        >
-          {Ico.trash}
-          Delete
-        </button>
-      </div>
-    </article>
+    </button>
   )
 }
+
 
 /* ─── Main App ─── */
 export function App() {
@@ -282,7 +198,6 @@ export function App() {
   const [devices, setDevices] = useState<DeviceRow[]>([])
   const [error, setError]     = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [nowTick, setNowTick] = useState(() => Date.now())
 
   const [newMachineId, setNewMachineId] = useState('')
   const [newLabel,     setNewLabel]     = useState('')
@@ -305,12 +220,16 @@ export function App() {
   const [editRollingMinutes, setEditRollingMinutes] = useState('')
   const [editSaving,   setEditSaving]   = useState(false)
 
+  /** Device quick-view sheet (tier, dates, actions) — separate from edit form */
+  const [detailRow, setDetailRow] = useState<DeviceRow | null>(null)
+
   const [tab, setTab] = useState<TabId>('devices')
+  const [product, setProduct] = useState<PlatformProductKey>('bazar_one')
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const r = await fetch('/api/platform/admin/devices', { credentials: 'include' })
+      const r = await fetch(`/api/platform/admin/devices${productQuery(product)}`, { credentials: 'include' })
       if (r.status === 401) {
         setSession('anon')
         setDevices([])
@@ -323,9 +242,11 @@ export function App() {
       }
       const j = (await r.json()) as { devices: DeviceRow[] }
       setDevices(j.devices ?? [])
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
-    finally { setLoading(false) }
-  }, [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setDevices([])
+    } finally { setLoading(false) }
+  }, [product])
 
   useEffect(() => {
     void (async () => {
@@ -345,13 +266,17 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    setDevices([])
+    setEditOpen(false)
+    setEditRow(null)
+    setEditSaving(false)
+    setDetailRow(null)
+  }, [product])
+
+  useEffect(() => {
     if (session !== 'ok') return
     void load()
-  }, [session, load])
-  useEffect(() => {
-    const id = setInterval(() => setNowTick(Date.now()), 1_000)
-    return () => clearInterval(id)
-  }, [])
+  }, [session, load, product])
 
   async function addDevice(e: React.FormEvent) {
     e.preventDefault(); setError(null)
@@ -370,6 +295,7 @@ export function App() {
       const r = await fetch('/api/platform/admin/devices', {
         method: 'POST', headers: JSON_HEADERS, credentials: 'include',
         body: JSON.stringify({
+          product,
           machineId: newMachineId.trim(),
           label: newLabel.trim() || null,
           tier: newTier, renew,
@@ -394,24 +320,32 @@ export function App() {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
   }
 
-  async function toggleRevoke(machineId: string, revoked: boolean) {
+  async function toggleRevoke(machineId: string, revoked: boolean): Promise<boolean> {
     setError(null)
     try {
-      const r = await fetch(`/api/platform/admin/devices/${encodeURIComponent(machineId)}/revoke`, {
-        method: 'PATCH', headers: JSON_HEADERS, credentials: 'include',
-        body: JSON.stringify({ revoked: !revoked }),
-      })
+      const r = await fetch(
+        `/api/platform/admin/devices/${encodeURIComponent(machineId)}/revoke${productQuery(product)}`,
+        {
+          method: 'PATCH', headers: JSON_HEADERS, credentials: 'include',
+          body: JSON.stringify({ revoked: !revoked }),
+        },
+      )
       if (r.status === 401) {
         setSession('anon')
         setError('Sign in required.')
-        return
+        return false
       }
       if (!r.ok) throw new Error(await r.text())
       await load()
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)) }
+      return true
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      return false
+    }
   }
 
   function openEdit(d: DeviceRow) {
+    setDetailRow(null)
     setEditRow(d); setEditLabel(d.label ?? ''); setEditNotes(d.notes ?? '')
     setEditTier(d.tier)
     setEditExpires(d.tier === 'lifetime' || d.expiresAtMs == null ? '' : msToDatetimeLocal(d.expiresAtMs))
@@ -442,15 +376,18 @@ export function App() {
     }
     setEditSaving(true)
     try {
-      const r = await fetch(`/api/platform/admin/devices/${encodeURIComponent(editRow.machineId)}`, {
-        method: 'PATCH', headers: JSON_HEADERS, credentials: 'include',
-        body: JSON.stringify({
-          label: editLabel.trim() || null,
-          notes: editNotes.trim() || null,
-          tier: editTier, expiresAtMs, lastSyncAtMs,
-          rollingMaxMs: rollingParsed,
-        }),
-      })
+      const r = await fetch(
+        `/api/platform/admin/devices/${encodeURIComponent(editRow.machineId)}${productQuery(product)}`,
+        {
+          method: 'PATCH', headers: JSON_HEADERS, credentials: 'include',
+          body: JSON.stringify({
+            label: editLabel.trim() || null,
+            notes: editNotes.trim() || null,
+            tier: editTier, expiresAtMs, lastSyncAtMs,
+            rollingMaxMs: rollingParsed,
+          }),
+        },
+      )
       if (r.status === 401) {
         setSession('anon')
         setError('Sign in required.')
@@ -478,20 +415,21 @@ export function App() {
     if (!window.confirm(`Delete device?\n${machineId}`)) return
     setError(null)
     try {
-      const r = await fetch(`/api/platform/admin/devices/${encodeURIComponent(machineId)}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
+      const r = await fetch(
+        `/api/platform/admin/devices/${encodeURIComponent(machineId)}${productQuery(product)}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        },
+      )
       if (r.status === 401) {
         setSession('anon')
         setError('Sign in required.')
         return
       }
-      if (!r.ok) {
-        const j = (await r.json().catch(() => ({}))) as { error?: string }
-        throw new Error(j.error ?? r.statusText)
-      }
+      if (!r.ok) throw new Error((await r.text()) || r.statusText)
       if (editRow?.machineId === machineId) closeEdit()
+      setDetailRow((cur) => (cur?.machineId === machineId ? null : cur))
       await load()
     } catch (err) { setError(err instanceof Error ? err.message : String(err)) }
   }
@@ -499,10 +437,8 @@ export function App() {
   /* ── Render ── */
   if (session === 'loading') {
     return (
-      <div className="app-shell">
-        <main className="page" style={{ paddingTop: 48, textAlign: 'center', color: 'var(--label-3)' }}>
-          Loading…
-        </main>
+      <div className="app-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="spinner" style={{ width: 40, height: 40, borderColor: 'var(--md-primary)', borderTopColor: 'transparent' }} />
       </div>
     )
   }
@@ -520,271 +456,346 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <header>
-        <nav className="nav-bar" aria-label="App navigation">
-          <div className="nav-bar__inner">
-            <div className="nav-bar__brand">
-              <span className="nav-bar__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M15.5 3.5a2.5 2.5 0 0 1 2.5 2.5v2h-4v-2a2.5 2.5 0 0 1 2.5-2.5Z"
-                    stroke="currentColor"
-                    strokeWidth="1.35"
-                    strokeLinejoin="round"
-                  />
-                  <rect x="6" y="10" width="13" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.35" />
-                  <circle cx="10" cy="15" r="1.4" fill="currentColor" />
-                  <path d="M14 15h4.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-                </svg>
-              </span>
-              <div className="nav-bar__titles">
-                <h1 className="nav-bar__title">LM App</h1>
-                <p className="nav-bar__subtitle">License manager · Device activation · Update feed</p>
-              </div>
+      <header className="native-app-header">
+        <div className="native-app-header__inner">
+          <div className="native-app-header__lead">
+            <div className="native-app-header__logo-container">
+              <img
+                src="/amanlogo.png"
+                alt="Amaan Logo"
+                width={40}
+                height={40}
+                className="native-app-header__logo"
+              />
+            </div>
+            <div className="header-product-switcher">
+              {['sufra_lite', 'bazar_one'].map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  className={`header-product-switcher__item ${product === p ? 'header-product-switcher__item--active' : ''}`}
+                  onClick={() => setProduct(p as PlatformProductKey)}
+                >
+                  {p.split('_')[0].toUpperCase()}
+                </button>
+              ))}
             </div>
           </div>
-        </nav>
+
+          <div className="native-app-header__titles">
+            <h1 className="native-app-header__title">
+              {tab === 'devices' ? 'Devices' : tab === 'releases' ? 'Releases' : 'Settings'}
+            </h1>
+          </div>
+
+          <div className="native-app-header__trailing">
+            {tab === 'devices' && (
+              <button 
+                className="m3-btn m3-btn--text" 
+                type="button" 
+                onClick={() => void load()} 
+                disabled={loading}
+                aria-label="Refresh devices"
+              >
+                <div className={loading ? 'spinner' : ''}>{Ico.refresh}</div>
+              </button>
+            )}
+          </div>
+        </div>
       </header>
 
-      <main className="page">
+      <main className="page page--bottom-nav">
+        {/* Product selector moved to header */}
 
-        {/* ── Tab switcher + sign out (when auth is on) ── */}
-        <div className="lm-tabs-wrap">
-          <div className="lm-tabs-row">
-            <div role="tablist" aria-label="Sections" className="tab-bar">
-              <button
-                role="tab"
-                type="button"
-                aria-selected={tab === 'devices'}
-                className={`tab-bar__btn${tab === 'devices' ? ' tab-bar__btn--active' : ''}`}
-                onClick={() => setTab('devices')}
-              >
-                Devices
-              </button>
-              <button
-                role="tab"
-                type="button"
-                aria-selected={tab === 'releases'}
-                className={`tab-bar__btn${tab === 'releases' ? ' tab-bar__btn--active' : ''}`}
-                onClick={() => setTab('releases')}
-              >
-                Releases
-              </button>
-            </div>
+
+        {tab === 'releases' && (
+          <ReleasesTab product={product} onUnauthorized={() => setSession('anon')} />
+        )}
+
+        {tab === 'devices' ? (
+          <>
+            {error ? (
+              <div className="alert" role="alert">
+                {Ico.exclamation}
+                <span>{error}</span>
+              </div>
+            ) : null}
+
+            <section className="bento-card">
+              <h2 className="bento-card__title">Quick Activation</h2>
+              <form onSubmit={(ev) => void addDevice(ev)}>
+                <div className="ios-section">
+                  <Field label="Machine ID" first>
+                    <input
+                      id="new-machine-id"
+                      className="field__input"
+                      required
+                      value={newMachineId}
+                      onChange={(e) => setNewMachineId(e.target.value)}
+                      dir="ltr"
+                      placeholder="WIN-ABC123-XYZ"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                  </Field>
+                  <Field label="Label">
+                    <input
+                      id="new-label"
+                      className="field__input"
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      placeholder="Front desk"
+                    />
+                  </Field>
+                  <Field label="Tier">
+                    <select id="new-tier" className="field__select" value={newTier} onChange={(e) => setNewTier(e.target.value)}>
+                      <option value="5d">5 days</option>
+                      <option value="15d">15 days</option>
+                      <option value="1m">1 month</option>
+                      <option value="2m">2 months</option>
+                      <option value="lifetime">Lifetime</option>
+                      <option value="custom">Custom…</option>
+                    </select>
+                  </Field>
+                  {newTier === 'custom' ? (
+                    <>
+                      <Field label="Amount">
+                        <input
+                          id="custom-amount"
+                          className="field__input"
+                          type="number"
+                          min={0.001}
+                          step="any"
+                          required
+                          dir="ltr"
+                          value={customAmount}
+                          onChange={(e) => setCustomAmount(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Unit">
+                        <select
+                          id="custom-unit"
+                          className="field__select"
+                          value={customUnit}
+                          onChange={(e) => setCustomUnit(e.target.value as CustomUnit)}
+                        >
+                          <option value="seconds">Seconds</option>
+                          <option value="minutes">Minutes</option>
+                          <option value="hours">Hours</option>
+                          <option value="days">Days</option>
+                        </select>
+                      </Field>
+                    </>
+                  ) : null}
+                  <Field label="Notes">
+                    <textarea
+                      id="new-notes"
+                      className="field__textarea"
+                      value={newNotes}
+                      onChange={(e) => setNewNotes(e.target.value)}
+                      rows={2}
+                      placeholder="Optional"
+                    />
+                  </Field>
+                  <Field
+                    label="Offline grace"
+                    hint="Max time without a sync before check-in."
+                  >
+                    <div className="field__inline">
+                      <input
+                        id="new-rolling-days"
+                        className="field__input"
+                        type="number"
+                        min={0}
+                        placeholder="Days"
+                        value={newRollingDays}
+                        onChange={(e) => setNewRollingDays(e.target.value)}
+                      />
+                      <span className="field__suffix">d</span>
+                      <input
+                        id="new-rolling-minutes"
+                        className="field__input"
+                        type="number"
+                        min={0}
+                        placeholder="Mins"
+                        value={newRollingMinutes}
+                        onChange={(e) => setNewRollingMinutes(e.target.value)}
+                      />
+                      <span className="field__suffix">m</span>
+                    </div>
+                  </Field>
+                </div>
+
+                <button
+                  id="activate-btn"
+                  type="submit"
+                  className="m3-btn m3-btn--primary"
+                  disabled={loading}
+                  style={{ width: '100%', borderRadius: 16, height: 52 }}
+                >
+                  {loading ? <span className="spinner" /> : <>{Ico.plus} Activate Device</>}
+                </button>
+              </form>
+            </section>
+
+            <section className="bento-card">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                <h2 className="bento-card__title" style={{ margin: 0 }}>Registered Devices</h2>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--md-on-surface-variant)' }}>
+                  {devices.length} Total
+                </span>
+              </div>
+
+              {devices.length > 0 ? (
+                <div className="devices-list">
+                  {devices.map((d) => (
+                    <DeviceCard key={d.machineId} d={d} onOpen={(row) => setDetailRow(row)} />
+                  ))}
+                </div>
+              ) : !loading ? (
+                <div className="empty-state">
+                  {Ico.empty}
+                  <p className="empty-state__title">No devices found</p>
+                  <p className="empty-state__sub">Start by activating a machine ID above.</p>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <span className="spinner" style={{ width: 32, height: 32 }} />
+                </div>
+              )}
+            </section>
+          </>
+        ) : null}
+
+        {tab === 'settings' ? (
+          <>
+            <p className="section-label">Session</p>
             {authEnabled ? (
               <button
                 type="button"
-                className="nav-bar__logout lm-tabs-signout"
+                className="m3-btn m3-btn--outline"
+                style={{ width: '100%', minHeight: 48, marginBottom: 28 }}
                 onClick={() => void logout()}
               >
                 Sign out
               </button>
-            ) : null}
-          </div>
-        </div>
-
-        {tab === 'releases' ? (
-          <ReleasesTab onUnauthorized={() => setSession('anon')} />
-        ) : (<>
-
-        {/* Error */}
-        {error ? (
-          <div className="alert" role="alert">
-            {Ico.exclamation}
-            <span>{error}</span>
-          </div>
+            ) : (
+              <p style={{ fontSize: '0.9375rem', color: 'var(--md-on-surface-variant)', lineHeight: 1.5, marginBottom: 28 }}>
+                Admin password is not enabled on this server.
+              </p>
+            )}
+            <p className="section-label">About</p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--label-2)', lineHeight: 1.55 }}>
+              LM App — manage device licenses and publish client updates for the selected product.
+            </p>
+          </>
         ) : null}
-
-        {/* ── Activate form (single <form> so submit includes all fields) ── */}
-        <p className="section-label">New device</p>
-        <form
-          onSubmit={(ev) => void addDevice(ev)}
-          style={{ marginBottom: 36 }}
-        >
-        <div className="ios-section" style={{ marginBottom: 8 }}>
-          <Field label="Machine ID" first>
-            <input
-              id="new-machine-id"
-              className="field__input"
-              required
-              value={newMachineId}
-              onChange={(e) => setNewMachineId(e.target.value)}
-              dir="ltr"
-              placeholder="WIN-ABC123-XYZ"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Label">
-            <input
-              id="new-label"
-              className="field__input"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="Front desk"
-            />
-          </Field>
-          <Field label="Tier">
-            <select
-              id="new-tier"
-              className="field__select"
-              value={newTier}
-              onChange={(e) => setNewTier(e.target.value)}
-            >
-              <option value="5d">5 days</option>
-              <option value="15d">15 days</option>
-              <option value="1m">1 month</option>
-              <option value="2m">2 months</option>
-              <option value="lifetime">Lifetime</option>
-              <option value="custom">Custom…</option>
-            </select>
-          </Field>
-          {newTier === 'custom' ? (
-            <>
-              <Field label="Amount">
-                <input
-                  id="custom-amount"
-                  className="field__input"
-                  type="number"
-                  min={0.001}
-                  step="any"
-                  required
-                  dir="ltr"
-                  value={customAmount}
-                  onChange={(e) => setCustomAmount(e.target.value)}
-                />
-              </Field>
-              <Field label="Unit">
-                <select
-                  id="custom-unit"
-                  className="field__select"
-                  value={customUnit}
-                  onChange={(e) => setCustomUnit(e.target.value as CustomUnit)}
-                >
-                  <option value="seconds">Seconds</option>
-                  <option value="minutes">Minutes</option>
-                  <option value="hours">Hours</option>
-                  <option value="days">Days</option>
-                </select>
-              </Field>
-            </>
-          ) : null}
-          <Field label="Notes">
-            <textarea
-              id="new-notes"
-              className="field__textarea"
-              value={newNotes}
-              onChange={(e) => setNewNotes(e.target.value)}
-              rows={2}
-              placeholder="Optional"
-            />
-          </Field>
-          <Field
-            label="Offline grace"
-            hint="Max time without a sync before the device must check in. Leave blank to use the server default."
-          >
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <input
-                id="new-rolling-days"
-                className="field__input"
-                type="number"
-                min={0}
-                step={1}
-                dir="ltr"
-                placeholder="Days"
-                aria-label="Offline grace days"
-                value={newRollingDays}
-                onChange={(e) => setNewRollingDays(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <span style={{ color: 'var(--label-3)', fontSize: 13 }}>d</span>
-              <input
-                id="new-rolling-minutes"
-                className="field__input"
-                type="number"
-                min={0}
-                step={1}
-                dir="ltr"
-                placeholder="Minutes"
-                aria-label="Offline grace minutes"
-                value={newRollingMinutes}
-                onChange={(e) => setNewRollingMinutes(e.target.value)}
-                style={{ flex: 1 }}
-              />
-              <span style={{ color: 'var(--label-3)', fontSize: 13 }}>m</span>
-            </div>
-          </Field>
-
-          <div className="ios-toggle-row">
-            <span className="ios-toggle-label">Renew from now</span>
-            <input
-              id="renew-toggle"
-              type="checkbox"
-              className="ios-toggle-input"
-              checked={renew}
-              onChange={(e) => setRenew(e.target.checked)}
-            />
-          </div>
-        </div>
-
-          <button
-            id="activate-btn"
-            type="submit"
-            className="btn btn-primary btn-primary--green"
-            disabled={loading}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-          >
-            {loading
-              ? <span className="spinner" />
-              : <>{Ico.plus} Activate</>
-            }
-          </button>
-        </form>
-
-        {/* ── Devices list ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <p className="section-label" style={{ margin: 0 }}>
-            Devices{devices.length > 0 ? ` — ${devices.length}` : ''}
-          </p>
-          <button
-            id="refresh-btn"
-            type="button"
-            className="btn btn-nav"
-            onClick={() => void load()}
-            disabled={loading}
-            aria-label="Refresh"
-          >
-            {loading ? <span className="spinner spinner--blue" style={{ width: 14, height: 14 }} /> : Ico.refresh}
-          </button>
-        </div>
-
-        {devices.length > 0 ? (
-          <div>
-            {devices.map((d) => (
-              <DeviceCard
-                key={d.machineId}
-                d={d}
-                nowTick={nowTick}
-                onEdit={openEdit}
-                onRevoke={(id, rev) => void toggleRevoke(id, rev)}
-                onDelete={(id) => void removeDevice(id)}
-              />
-            ))}
-          </div>
-        ) : !loading ? (
-          <div className="empty-state" style={{ color: 'var(--label-3)' }}>
-            {Ico.empty}
-            <p className="empty-state__title">No devices</p>
-            <p className="empty-state__sub">Activate a device above.</p>
-          </div>
-        ) : (
-          <div className="empty-state">
-            <span className="spinner spinner--blue" style={{ width: 28, height: 28 }} />
-          </div>
-        )}
-
-        </>)}
       </main>
+
+      <nav className="bottom-nav" role="navigation" aria-label="Primary">
+        <button
+          type="button"
+          className={`bottom-nav__item${tab === 'devices' ? ' bottom-nav__item--active' : ''}`}
+          onClick={() => setTab('devices')}
+          aria-current={tab === 'devices' ? 'page' : undefined}
+        >
+          <span className="bottom-nav__icon-wrapper" aria-hidden>{Ico.devices}</span>
+          <span className="bottom-nav__label">Devices</span>
+        </button>
+        <button
+          type="button"
+          className={`bottom-nav__item${tab === 'releases' ? ' bottom-nav__item--active' : ''}`}
+          onClick={() => setTab('releases')}
+          aria-current={tab === 'releases' ? 'page' : undefined}
+        >
+          <span className="bottom-nav__icon-wrapper" aria-hidden>{Ico.releases}</span>
+          <span className="bottom-nav__label">Releases</span>
+        </button>
+        <button
+          type="button"
+          className={`bottom-nav__item${tab === 'settings' ? ' bottom-nav__item--active' : ''}`}
+          onClick={() => setTab('settings')}
+          aria-current={tab === 'settings' ? 'page' : undefined}
+        >
+          <span className="bottom-nav__icon-wrapper" aria-hidden>{Ico.settings}</span>
+          <span className="bottom-nav__label">Settings</span>
+        </button>
+      </nav>
+
+      {/* ── Device detail sheet (tap compact card) ── */}
+      {detailRow && !editOpen ? (
+        <div
+          role="presentation"
+          className="sheet-backdrop"
+          onClick={() => setDetailRow(null)}
+          onKeyDown={(e) => { if (e.key === 'Escape') setDetailRow(null) }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="device-detail-title"
+            className="sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sheet__nav">
+              <button type="button" className="sheet__nav-btn" onClick={() => setDetailRow(null)}>
+                Close
+              </button>
+              <span id="device-detail-title" className="sheet__nav-title">Device</span>
+              <span className="sheet__nav-spacer" aria-hidden />
+            </div>
+
+            <div className="sheet__content device-detail-sheet">
+              <p className="device-detail-sheet__id">{detailRow.machineId}</p>
+              <div className="m3-card__grid device-detail-sheet__grid">
+                <div className="m3-meta">
+                  <span className="m3-meta__label">Tier</span>
+                  <span className="m3-meta__value">{detailRow.tier}</span>
+                </div>
+                <div className="m3-meta">
+                  <span className="m3-meta__label">Expires</span>
+                  <span className="m3-meta__value">{fmtDate(detailRow.expiresAtMs)}</span>
+                </div>
+                <div className="m3-meta">
+                  <span className="m3-meta__label">Last sync</span>
+                  <span className="m3-meta__value">{fmtDate(detailRow.lastSyncAtMs)}</span>
+                </div>
+                <div className="m3-meta">
+                  <span className="m3-meta__label">Status</span>
+                  <span className="m3-meta__value">{detailRow.computedStatus}</span>
+                </div>
+              </div>
+
+              <div className="device-detail-sheet__actions">
+                <button type="button" className="m3-btn m3-btn--text" onClick={() => void removeDevice(detailRow.machineId)}>
+                  {Ico.trash}
+                </button>
+                <button
+                  type="button"
+                  className="m3-btn m3-btn--text"
+                  onClick={() => {
+                    void (async () => {
+                      const ok = await toggleRevoke(detailRow.machineId, detailRow.revoked)
+                      if (ok) setDetailRow(null)
+                    })()
+                  }}
+                >
+                  {detailRow.revoked ? Ico.unlock : Ico.lock}
+                </button>
+                <button
+                  type="button"
+                  className="m3-btn m3-btn--tonal"
+                  onClick={() => {
+                    openEdit(detailRow)
+                  }}
+                >
+                  {Ico.edit} Edit
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* ── Edit sheet ── */}
       {editOpen && editRow ? (
@@ -801,8 +812,6 @@ export function App() {
             className="sheet"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="sheet__handle-wrap"><div className="sheet__handle" /></div>
-
             {/* Sheet nav bar */}
             <div className="sheet__nav">
               <button id="edit-cancel-btn" className="sheet__nav-btn" type="button" onClick={closeEdit} disabled={editSaving}>
@@ -878,7 +887,7 @@ export function App() {
                     label="Offline grace"
                     hint="Blank days and minutes = server default window."
                   >
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <div className="field__inline">
                       <input
                         id="edit-rolling-days"
                         className="field__input"
@@ -890,9 +899,8 @@ export function App() {
                         aria-label="Offline grace days"
                         value={editRollingDays}
                         onChange={(e) => setEditRollingDays(e.target.value)}
-                        style={{ flex: 1 }}
                       />
-                      <span style={{ color: 'var(--label-3)', fontSize: 13 }}>d</span>
+                      <span className="field__suffix">d</span>
                       <input
                         id="edit-rolling-minutes"
                         className="field__input"
@@ -904,9 +912,8 @@ export function App() {
                         aria-label="Offline grace minutes"
                         value={editRollingMinutes}
                         onChange={(e) => setEditRollingMinutes(e.target.value)}
-                        style={{ flex: 1 }}
                       />
-                      <span style={{ color: 'var(--label-3)', fontSize: 13 }}>m</span>
+                      <span className="field__suffix">m</span>
                     </div>
                   </Field>
                   <Field label="Notes">
