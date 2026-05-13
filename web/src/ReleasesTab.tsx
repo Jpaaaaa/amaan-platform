@@ -7,6 +7,7 @@ import type {
   PlatformUpdatePublishResponse,
   PlatformUpdateUploadResponse,
 } from '@shared/types/app-update'
+import type { PlatformProductKey } from '@shared/platform-product'
 
 /** Installer extensions that can be published (match the server's allow-list). */
 const PUBLISHABLE_EXT = new Set(['.exe', '.zip', '.dmg', '.appimage', '.deb', '.rpm'])
@@ -61,53 +62,62 @@ function fileBadgeClass(name: string): string {
 }
 
 /* ─── Icons ─── */
+/* ─── M3 Icons ─── */
 const Ico = {
   refresh: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M13.5 2.5A6.5 6.5 0 1 1 7 1.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-      <path d="M7 1.5 9.5 4 7 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <polyline points="1 20 1 14 7 14"></polyline>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
     </svg>
   ),
   upload: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <path d="M8 11V2M8 2 4.5 5.5M8 2l3.5 3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M2 11v2a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="17 8 12 3 7 8"></polyline>
+      <line x1="12" y1="3" x2="12" y2="15"></line>
     </svg>
   ),
   trash: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path d="M1.5 3.5h11M5 3.5V2.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5v1M11.5 3.5 11 11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1L2.5 3.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6"></polyline>
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
     </svg>
   ),
   copy: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <rect x="3.5" y="3.5" width="8" height="9" rx="1" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M5.5 3.5V2a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v7.5" stroke="currentColor" strokeWidth="1.4"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
     </svg>
   ),
   broadcast: (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <circle cx="7" cy="7" r="1.5" fill="currentColor"/>
-      <path d="M4.5 4.5a3.5 3.5 0 0 0 0 5M9.5 4.5a3.5 3.5 0 0 1 0 5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-      <path d="M2.5 2.5a6 6 0 0 0 0 9M11.5 2.5a6 6 0 0 1 0 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14"></path>
+      <path d="M12 5l7 7-7 7"></path>
     </svg>
   ),
   exclamation: (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.4"/>
-      <path d="M8 5v4M8 11v.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-    </svg>
-  ),
-  empty: (
-    <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-      <rect x="8" y="4" width="32" height="40" rx="4" stroke="currentColor" strokeWidth="1.6"/>
-      <path d="M16 16h16M16 22h16M16 28h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
     </svg>
   ),
 }
 
+
+function productQuery(p: PlatformProductKey): string {
+  return `?product=${encodeURIComponent(p)}`
+}
+
 /* ─── Main component ─── */
-export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void }) {
+export function ReleasesTab({
+  product,
+  onUnauthorized,
+}: {
+  product: PlatformProductKey
+  onUnauthorized?: () => void
+}) {
   const [manifest, setManifest] = useState<PlatformUpdateLatestResponse | null>(null)
   const [health, setHealth] = useState<PlatformUpdateHealthResponse | null>(null)
   const [files, setFiles] = useState<PlatformUpdateFileEntry[] | null>(null)
@@ -125,17 +135,19 @@ export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void })
 
   const feedUrl = useMemo(() => {
     if (typeof window === 'undefined') return ''
-    return `${window.location.origin.replace(/\/$/, '')}/updates/`
-  }, [])
+    const origin = window.location.origin.replace(/\/$/, '')
+    return `${origin}/updates/${encodeURIComponent(product)}/`
+  }, [product])
 
   const loadAll = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
+      const pq = productQuery(product)
       const [mRes, hRes, fRes] = await Promise.all([
-        fetch('/api/platform/update/latest'),
-        fetch('/api/platform/update/health'),
-        fetch('/api/platform/admin/updates/files', { credentials: 'include' }),
+        fetch(`/api/platform/update/latest${pq}`),
+        fetch(`/api/platform/update/health${pq}`),
+        fetch(`/api/platform/admin/updates/files${pq}`, { credentials: 'include' }),
       ])
       if (!mRes.ok) throw new Error(`manifest: ${mRes.statusText}`)
       if (!hRes.ok) throw new Error(`health: ${hRes.statusText}`)
@@ -156,7 +168,7 @@ export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void })
     } finally {
       setLoading(false)
     }
-  }, [onUnauthorized])
+  }, [onUnauthorized, product])
 
   useEffect(() => { void loadAll() }, [loadAll])
 
@@ -186,7 +198,7 @@ export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void })
 
     const xhr = new XMLHttpRequest()
     xhr.withCredentials = true
-    xhr.open('POST', '/api/platform/admin/updates/upload')
+    xhr.open('POST', `/api/platform/admin/updates/upload${productQuery(product)}`)
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable) {
         setUploadPct(Math.round((ev.loaded / ev.total) * 100))
@@ -246,7 +258,7 @@ export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void })
     )) return
     setPublishing(name); setError(null); setToast(null)
     try {
-      const r = await fetch('/api/platform/admin/updates/publish', {
+      const r = await fetch(`/api/platform/admin/updates/publish${productQuery(product)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -275,10 +287,13 @@ export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void })
     if (!window.confirm(`Delete ${name}?`)) return
     setDeleting(name); setError(null)
     try {
-      const r = await fetch(`/api/platform/admin/updates/files/${encodeURIComponent(name)}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      })
+      const r = await fetch(
+        `/api/platform/admin/updates/files/${encodeURIComponent(name)}${productQuery(product)}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+        },
+      )
       if (r.status === 401) {
         onUnauthorized?.()
         throw new Error('Sign in required.')
@@ -305,213 +320,107 @@ export function ReleasesTab({ onUnauthorized }: { onUnauthorized?: () => void })
 
   return (
     <>
-      {/* Error / toast */}
-      {error ? (
-        <div className="alert" role="alert">
-          {Ico.exclamation}
-          <span>{error}</span>
-        </div>
-      ) : null}
-      {toast ? (
-        <div className="rel-toast" role="status" aria-live="polite">{toast}</div>
-      ) : null}
-
-      {/* ── Health / manifest summary ── */}
-      <div className="rel-summary">
-        <div className="rel-summary__row">
-          <span className={`rel-dot ${healthy ? 'rel-dot--ok' : 'rel-dot--warn'}`} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="rel-summary__title">
-              {hasManifest
-                ? `Live: v${(manifest as { version: string }).version}`
-                : 'No release published'}
-            </div>
-            <div className="rel-summary__sub">
-              {health?.latestYmlExists
-                ? `Manifest present · ${fmtIso((manifest as { releaseDate?: string | null }).releaseDate ?? null)}`
-                : health?.directoryExists
-                  ? 'Folder exists but `latest.yml` is missing'
-                  : 'Updates folder does not exist'}
-            </div>
-          </div>
-        </div>
-        {hasManifest ? (
-          <>
-            <div className="rel-summary__divider" />
-            <div className="rel-summary__kv">
-              <div className="rel-summary__kv-row">
-                <span className="rel-summary__kv-key">Installer</span>
-                <span className="rel-summary__kv-val" dir="ltr">
-                  {(manifest as { path: string }).path || '—'}
-                </span>
-              </div>
-              {(manifest as { sha512?: string | null }).sha512 ? (
-                <div className="rel-summary__kv-row">
-                  <span className="rel-summary__kv-key">SHA-512</span>
-                  <span className="rel-summary__kv-val rel-summary__kv-val--mono" dir="ltr">
-                    {(manifest as { sha512: string }).sha512.slice(0, 12)}…
-                  </span>
-                </div>
-              ) : null}
-              <div className="rel-summary__kv-row">
-                <span className="rel-summary__kv-key">Folder</span>
-                <span className="rel-summary__kv-val rel-summary__kv-val--mono" dir="ltr">
-                  {updatesDir || '—'}
-                </span>
-              </div>
-            </div>
-          </>
-        ) : null}
-      </div>
-
-      {/* ── Feed URL ── */}
-      <p className="section-label">Feed URL</p>
-      <div className="ios-section" style={{ marginBottom: 20 }}>
-        <div className="rel-url-row">
-          <code className="rel-url" dir="ltr">{feedUrl}</code>
-          <button
-            type="button"
-            className="btn btn-pill btn-pill--blue"
-            onClick={() => void copyFeedUrl()}
-            aria-label="Copy feed URL"
-          >
-            {Ico.copy}
-            Copy
-          </button>
-        </div>
-        <p className="rel-hint">
-          Point the POS client's <code>AMAAN_UPDATE_FEED_URL_EMBEDDED</code> build variable at this URL
-          (use HTTPS in production).
-        </p>
-      </div>
-
-      {/* ── Drop-zone ── */}
-      <p className="section-label">Publish release</p>
-      <div
-        role="button"
-        tabIndex={0}
-        className={`rel-drop${dragOver ? ' rel-drop--active' : ''}${uploading ? ' rel-drop--busy' : ''}`}
-        onClick={() => { if (!uploading) pickFiles() }}
-        onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !uploading) pickFiles() }}
-        onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={onDrop}
-        aria-disabled={uploading}
+      {error && <div className="alert" style={{ marginBottom: 24, borderRadius: 16 }}>{error}</div>}
+      
+      {/* Live Release Summary */}
+      <section
+        className="bento-card"
+        style={{
+          background: 'linear-gradient(135deg, #dbeafe 0%, #eff6ff 55%, #f0f9ff 100%)',
+          border: '1px solid rgba(13, 146, 255, 0.18)',
+        }}
       >
-        <div className="rel-drop__icon">{Ico.upload}</div>
-        <div className="rel-drop__title">
-          {uploading
-            ? `Uploading… ${uploadPct != null ? `${uploadPct}%` : ''}`
-            : 'Drop installer + latest.yml here'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div className={`status-badge ${healthy ? 'status-badge--active' : 'status-badge--revoked'}`}>
+            <span className="status-badge__dot" />
+            {healthy ? 'Operational' : 'Issue Detected'}
+          </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--label)', letterSpacing: '-0.02em' }}>
+            {hasManifest ? `v${(manifest as { version: string }).version} is Live` : 'No Active Release'}
+          </h2>
         </div>
-        <div className="rel-drop__sub">
-          {uploading ? 'Please keep this tab open.' : 'or click to choose files'}
-        </div>
-        {uploading && uploadPct != null ? (
-          <div className="rel-drop__bar"><div style={{ width: `${uploadPct}%` }} /></div>
-        ) : null}
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          accept=".yml,.yaml,.exe,.blockmap,.zip,.dmg,.AppImage,.deb,.rpm"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            if (e.target.files && e.target.files.length > 0) uploadFiles(e.target.files)
-            e.target.value = ''
-          }}
-        />
-      </div>
-
-      {/* ── File list ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 8 }}>
-        <p className="section-label" style={{ margin: 0 }}>
-          Artifacts{files && files.length > 0 ? ` — ${files.length}` : ''}
+        <p style={{ fontSize: '0.8125rem', color: 'var(--label-2)', marginTop: 12, fontWeight: 500 }}>
+          {health?.latestYmlExists ? `Manifest synchronized · Published ${fmtIso((manifest as { releaseDate?: string | null }).releaseDate ?? null)}` : 'System setup incomplete or pending first release.'}
         </p>
-        <button
-          type="button"
-          className="btn btn-nav"
-          onClick={() => void loadAll()}
-          disabled={loading || uploading}
-          aria-label="Refresh"
+      </section>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+        {/* Feed URL */}
+        <section className="bento-card" style={{ marginBottom: 0 }}>
+          <h3 className="bento-card__title">Distribution Feed</h3>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <code
+              style={{
+                flex: 1,
+                background: 'var(--bg-tertiary)',
+                padding: '10px 14px',
+                borderRadius: 12,
+                fontSize: '0.6875rem',
+                color: 'var(--md-on-surface-variant)',
+                overflowX: 'auto',
+                border: '1px solid var(--obsidian-border)',
+              }}
+            >
+              {feedUrl}
+            </code>
+            <button className="m3-btn m3-btn--tonal" style={{ height: 40, width: 40, padding: 0, borderRadius: 12 }} onClick={() => void copyFeedUrl()} title="Copy URL">
+              {Ico.copy}
+            </button>
+          </div>
+        </section>
+
+        {/* Upload Zone */}
+        <section 
+          className={`bento-card ${dragOver ? 'drag-over' : ''}`} 
+          style={{ marginBottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '2px dashed var(--sep-opaque)', background: dragOver ? 'rgba(13, 146, 255, 0.08)' : 'transparent' }}
+          onClick={() => !uploading && pickFiles()}
+          onDragOver={(e) => { e.preventDefault(); !uploading && setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
         >
-          {loading ? <span className="spinner spinner--blue" style={{ width: 14, height: 14 }} /> : Ico.refresh}
-        </button>
+          <div style={{ color: 'var(--brand-blue)', marginBottom: 8 }}>{Ico.upload}</div>
+          <div style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--label)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {uploading ? `Uploading ${uploadPct}%` : 'Upload Artifact'}
+          </div>
+          <input ref={fileInputRef} type="file" multiple style={{ display: 'none' }} onChange={(e) => e.target.files && uploadFiles(e.target.files)} />
+        </section>
       </div>
 
-      {files === null ? (
-        <div className="empty-state">
-          <span className="spinner spinner--blue" style={{ width: 28, height: 28 }} />
+      {/* Artifacts List */}
+      <section className="bento-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h3 className="bento-card__title" style={{ margin: 0 }}>Storage Artifacts</h3>
+          <button className="m3-btn m3-btn--text" style={{ height: 32, width: 32, padding: 0 }} onClick={() => void loadAll()}>{Ico.refresh}</button>
         </div>
-      ) : files.length === 0 ? (
-        <div className="empty-state" style={{ color: 'var(--label-3)' }}>
-          {Ico.empty}
-          <p className="empty-state__title">No artifacts</p>
-          <p className="empty-state__sub">Drop a release above to publish it.</p>
-        </div>
-      ) : (
-        <div className="ios-section" style={{ marginBottom: 24 }}>
-          {files.map((f, idx) => {
-            const publishable = isPublishable(f.name)
-            const isLive = publishedInstaller === f.name
-            return (
-              <div key={f.name} className="rel-file" style={idx === 0 ? { borderRadius: 0 } : {}}>
-                <div className="rel-file__main">
-                  <div className="rel-file__head">
-                    <span className={fileBadgeClass(f.name)}>{fileExtLabel(f.name)}</span>
-                    {isLive ? <span className="rel-badge rel-badge--live">LIVE</span> : null}
-                    <a
-                      className="rel-file__name"
-                      href={`/updates/${encodeURIComponent(f.name)}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      dir="ltr"
-                    >
-                      {f.name}
-                    </a>
-                  </div>
-                  <div className="rel-file__meta">
-                    <span>{fmtBytes(f.sizeBytes)}</span>
-                    <span>·</span>
-                    <span>{fmtDateTime(f.modifiedAtMs)}</span>
-                  </div>
-                </div>
-                <div className="rel-file__actions">
-                  {publishable ? (
-                    <button
-                      type="button"
-                      className={`rel-file__publish${isLive ? ' rel-file__publish--live' : ''}`}
-                      onClick={() => void publishInstaller(f.name)}
-                      disabled={publishing === f.name || deleting === f.name}
-                      title={isLive ? 'Re-publish this version' : 'Publish to clients'}
-                    >
-                      {publishing === f.name ? (
-                        <span className="spinner spinner--blue" style={{ width: 14, height: 14 }} />
-                      ) : (
-                        <>
-                          {Ico.broadcast}
-                          <span>{isLive ? 'Re-publish' : 'Publish'}</span>
-                        </>
-                      )}
-                    </button>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="act-btn act-btn--red rel-file__del"
-                    onClick={() => void deleteFile(f.name)}
-                    disabled={deleting === f.name || publishing === f.name}
-                    aria-label={`Delete ${f.name}`}
-                  >
-                    {deleting === f.name
-                      ? <span className="spinner spinner--blue" style={{ width: 14, height: 14 }} />
-                      : Ico.trash}
-                  </button>
-                </div>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {files?.map(f => (
+            <div key={f.name} className="device-card-modern" style={{ cursor: 'default' }}>
+              <div className="device-card-modern__info">
+                <span className="device-card-modern__name">{f.name}</span>
+                <span className="device-card-modern__id">
+                  {fmtBytes(f.sizeBytes)} · {fmtDateTime(f.modifiedAtMs)}
+                </span>
               </div>
-            )
-          })}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {isPublishable(f.name) && (
+                  <button className="m3-btn m3-btn--primary" style={{ height: 36, padding: '0 12px', borderRadius: 10, fontSize: '0.6875rem', fontWeight: 800 }} onClick={() => publishInstaller(f.name)}>
+                    {Ico.broadcast} PUBLISH
+                  </button>
+                )}
+                <button className="m3-btn m3-btn--text" style={{ height: 36, width: 36, padding: 0, color: '#ef4444' }} onClick={() => deleteFile(f.name)}>
+                  {Ico.trash}
+                </button>
+              </div>
+            </div>
+          ))}
+          {(!files || files.length === 0) && (
+            <div className="empty-state" style={{ padding: '20px 0' }}>
+              <p style={{ color: 'var(--md-on-surface-variant)', fontSize: '0.875rem' }}>No artifacts found in storage.</p>
+            </div>
+          )}
         </div>
-      )}
+      </section>
     </>
   )
 }

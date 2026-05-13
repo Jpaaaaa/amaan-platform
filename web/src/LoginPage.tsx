@@ -34,64 +34,64 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   }
 
   return (
-    <div className="app-shell">
-      <header>
-        <nav className="nav-bar" aria-label="App navigation">
-          <div className="nav-bar__inner">
-            <div className="nav-bar__brand">
-              <span className="nav-bar__icon" aria-hidden>
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M15.5 3.5a2.5 2.5 0 0 1 2.5 2.5v2h-4v-2a2.5 2.5 0 0 1 2.5-2.5Z"
-                    stroke="currentColor"
-                    strokeWidth="1.35"
-                    strokeLinejoin="round"
-                  />
-                  <rect x="6" y="10" width="13" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.35" />
-                  <circle cx="10" cy="15" r="1.4" fill="currentColor" />
-                  <path d="M14 15h4.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" />
-                </svg>
-              </span>
-              <div className="nav-bar__titles">
-                <h1 className="nav-bar__title">LM App</h1>
-                <p className="nav-bar__subtitle">Sign in to manage licenses and releases</p>
-              </div>
-            </div>
+    <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
+      <header className="native-app-header" style={{ marginTop: 24 }}>
+        <div className="native-app-header__inner" style={{ justifyContent: 'center' }}>
+          <div className="native-app-header__logo-container">
+            <img
+              src="/amanlogo.png"
+              alt="Amaan Logo"
+              width={44}
+              height={44}
+              className="native-app-header__logo"
+            />
           </div>
-        </nav>
+          <h1 className="native-app-header__title" style={{ marginLeft: 16 }}>Amaan Platform</h1>
+        </div>
       </header>
 
-      <main className="page" style={{ paddingTop: 24 }}>
-        <div className="ios-section" style={{ maxWidth: 400, margin: '0 auto' }}>
+      <main className="page" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '10vh' }}>
+        <div className="bento-card" style={{ width: '100%', maxWidth: 400, padding: 40, textAlign: 'center' }}>
+          <div style={{ marginBottom: 32 }}>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--label)', marginBottom: 8, letterSpacing: '-0.02em' }}>Welcome back</h2>
+            <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)' }}>Enter your admin credentials</p>
+          </div>
+
           <form onSubmit={(ev) => void onSubmit(ev)}>
-            <div className="field" style={{ borderRadius: 0 }}>
-              <label className="field__label" htmlFor="lm-password">
-                Admin password
-              </label>
-              <input
-                id="lm-password"
-                className="field__input"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={busy}
-                required
-              />
+            <div className="ios-section" style={{ marginBottom: 24 }}>
+              <div className="field">
+                <label className="field__label" htmlFor="lm-password">Admin Password</label>
+                <input
+                  id="lm-password"
+                  className="field__input"
+                  type="password"
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={busy}
+                  required
+                  placeholder="••••••••"
+                  style={{ textAlign: 'center', fontSize: '1.25rem' }}
+                />
+              </div>
             </div>
-            {error ? (
-              <p className="alert" role="alert" style={{ margin: '12px 16px 0', borderRadius: 10 }}>
-                {error}
-              </p>
-            ) : null}
-            <div style={{ padding: '16px 16px 20px' }}>
-              <button type="submit" className="act-btn act-btn--blue" disabled={busy} style={{ width: '100%' }}>
-                {busy ? 'Signing in…' : 'Sign in'}
-              </button>
-            </div>
+
+            {error && (
+              <div className="alert" style={{ marginBottom: 24, borderRadius: 16 }}>{error}</div>
+            )}
+
+            <button 
+              type="submit" 
+              className="m3-btn m3-btn--primary" 
+              style={{ width: '100%', height: 56, borderRadius: 16, fontSize: '1rem', fontWeight: 700 }} 
+              disabled={busy}
+            >
+              {busy ? <span className="spinner" /> : 'Continue to Dashboard'}
+            </button>
           </form>
         </div>
       </main>
     </div>
   )
 }
+
