@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import './styles.css'
+import {
+  alertBox,
+  bentoCard,
+  cn,
+  fieldInput,
+  iosSection,
+  m3BtnPrimary,
+  spinner,
+} from './lib/ui'
 
 const JSON_HEADERS: HeadersInit = { 'Content-Type': 'application/json' }
 
@@ -34,36 +42,43 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
   }
 
   return (
-    <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-      <header className="native-app-header" style={{ marginTop: 24 }}>
-        <div className="native-app-header__inner" style={{ justifyContent: 'center' }}>
-          <div className="native-app-header__logo-container">
+    <div className="flex min-h-dvh flex-col">
+      <header className="sticky top-4 z-[101] mx-auto mt-6 w-[min(calc(100%-32px),600px)] rounded-[28px] border border-obsidian-border bg-obsidian-card shadow-premium backdrop-blur-[16px]">
+        <div className="flex min-h-16 items-center justify-center px-5 py-2">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-gradient-to-br from-white to-[#e3f2ff] p-1 shadow-[0_4px_15px_rgba(0,153,255,0.3)]">
             <img
               src="/amanlogo.png"
               alt="Amaan Logo"
               width={44}
               height={44}
-              className="native-app-header__logo"
+              className="h-full w-full object-contain"
             />
           </div>
-          <h1 className="native-app-header__title" style={{ marginLeft: 16 }}>Amaan Platform</h1>
+          <h1 className="ml-4 text-lg font-extrabold tracking-tight text-label">Amaan Platform</h1>
         </div>
       </header>
 
-      <main className="page" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', paddingBottom: '10vh' }}>
-        <div className="bento-card" style={{ width: '100%', maxWidth: 400, padding: 40, textAlign: 'center' }}>
-          <div style={{ marginBottom: 32 }}>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--label)', marginBottom: 8, letterSpacing: '-0.02em' }}>Welcome back</h2>
-            <p style={{ fontSize: '0.875rem', color: 'var(--md-on-surface-variant)' }}>Enter your admin credentials</p>
+      <main className="mx-auto flex flex-1 max-w-[600px] items-center justify-center px-4 pb-[10vh] pt-8">
+        <div className={cn(bentoCard, 'w-full max-w-[400px] p-10 text-center')}>
+          <div className="mb-8">
+            <h2 className="mb-2 text-[1.75rem] font-extrabold tracking-tight text-label">
+              Welcome back
+            </h2>
+            <p className="text-sm text-on-surface-variant">Enter your admin credentials</p>
           </div>
 
           <form onSubmit={(ev) => void onSubmit(ev)}>
-            <div className="ios-section" style={{ marginBottom: 24 }}>
-              <div className="field">
-                <label className="field__label" htmlFor="lm-password">Admin Password</label>
+            <div className={cn(iosSection, 'mb-6')}>
+              <div className="field-row border-t-0 px-4 py-3 pb-3.5">
+                <label
+                  className="mb-1.5 block text-[0.6875rem] font-bold uppercase tracking-wider text-label-2"
+                  htmlFor="lm-password"
+                >
+                  Admin Password
+                </label>
                 <input
                   id="lm-password"
-                  className="field__input"
+                  className={cn(fieldInput, 'text-center text-xl')}
                   type="password"
                   autoComplete="current-password"
                   value={password}
@@ -71,22 +86,18 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
                   disabled={busy}
                   required
                   placeholder="••••••••"
-                  style={{ textAlign: 'center', fontSize: '1.25rem' }}
                 />
               </div>
             </div>
 
-            {error && (
-              <div className="alert" style={{ marginBottom: 24, borderRadius: 16 }}>{error}</div>
-            )}
+            {error && <div className={cn(alertBox, 'mb-6 rounded-2xl')}>{error}</div>}
 
-            <button 
-              type="submit" 
-              className="m3-btn m3-btn--primary" 
-              style={{ width: '100%', height: 56, borderRadius: 16, fontSize: '1rem', fontWeight: 700 }} 
+            <button
+              type="submit"
+              className={cn(m3BtnPrimary, 'h-14 w-full rounded-2xl text-base font-bold')}
               disabled={busy}
             >
-              {busy ? <span className="spinner" /> : 'Continue to Dashboard'}
+              {busy ? <span className={spinner} /> : 'Continue to Dashboard'}
             </button>
           </form>
         </div>
@@ -94,4 +105,3 @@ export function LoginPage({ onLoggedIn }: { onLoggedIn: () => void }) {
     </div>
   )
 }
-

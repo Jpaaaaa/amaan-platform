@@ -3,122 +3,23 @@ import fs from 'node:fs'
 import path from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import type {
-  PlatformUpdateFileEntry,
   PlatformUpdateFilesResponse,
   PlatformUpdatePublishResponse,
   PlatformUpdateUploadResponse,
 } from '../../shared/types/app-update.js'
 import { parsePlatformProductKey } from '../../shared/platform-product.js'
 import { resolveUpdatesDirForProduct } from '../platform-updates-dir.js'
-
-/**
- * Allowed artifact extensions. `electron-builder` on Windows emits `.exe`,
- * `.exe.blockmap`, and `latest.yml`. We also accept `.zip` and `.yaml` so
- * future channels (beta, alpha) or cross-platform builds work without changes.
- * Explicit allow-list is safer than a blocklist — no wildcards.
- */
-const ALLOWED_EXT = new Set([
-  '.yml',
-  '.yaml',
-  '.exe',
-  '.blockmap',
-  '.zip',
-  '.dmg',
-  '.appimage',
-  '.deb',
-  '.rpm',
-])
-
-/** Installer-style extensions — the ones a `latest.yml` can point at. */
-const INSTALLER_EXT = new Set(['.exe', '.zip', '.dmg', '.appimage', '.deb', '.rpm'])
-
-/** Regex pulling semver from an installer filename (e.g. `Bazar One Setup 1.2.3.exe`). */
-const VERSION_FROM_NAME = /(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\.(?:exe|zip|dmg|appimage|deb|rpm)$/i
-
-/** Hash a file and return `{ sha512Base64, size }` — streams, so large installers don't OOM. */
-async function hashFile(filePath: string): Promise<{ sha512Base64: string; size: number }> {
-  const hash = crypto.createHash('sha512')
-  let size = 0
-  await new Promise<void>((resolve, reject) => {
-    const s = fs.createReadStream(filePath)
-    s.on('data', (chunk) => {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
-      size += buf.length
-      hash.update(buf)
-    })
-    s.on('end', () => resolve())
-    s.on('error', reject)
-  })
-  return { sha512Base64: hash.digest('base64'), size }
-}
-
-/**
- * Build an electron-updater-compatible `latest.yml` body pointing at a single
- * installer. Matches what `electron-builder` emits for the NSIS target — the
- * minimum set of fields `electron-updater` actually reads.
- */
-function buildLatestYml(params: {
-  version: string
-  installerName: string
-  sha512Base64: string
-  size: number
-  releaseDateIso: string
-}): string {
-  const { version, installerName, sha512Base64, size, releaseDateIso } = params
-  return (
-    `version: ${version}\n` +
-    `files:\n` +
-    `  - url: ${installerName}\n` +
-    `    sha512: ${sha512Base64}\n` +
-    `    size: ${size}\n` +
-    `path: ${installerName}\n` +
-    `sha512: ${sha512Base64}\n` +
-    `releaseDate: '${releaseDateIso}'\n`
-  )
-}
-
-/** Safe filename: no path separators, no parent refs, not hidden. */
-function sanitizeFilename(name: string): string | null {
-  const base = path.basename(name).trim()
-  if (!base) return null
-  if (base.startsWith('.')) return null
-  if (base.includes('/') || base.includes('\\')) return null
-  if (base === '.' || base === '..') return null
-  const lower = base.toLowerCase()
-  const ext =
-    lower.endsWith('.exe.blockmap')
-      ? '.blockmap'
-      : path.extname(lower)
-  if (!ALLOWED_EXT.has(ext)) return null
-  return base
-}
-
-function listArtifactFiles(dir: string): PlatformUpdateFileEntry[] {
-  if (!fs.existsSync(dir)) return []
-  const entries = fs.readdirSync(dir, { withFileTypes: true })
-  const files: PlatformUpdateFileEntry[] = []
-  for (const e of entries) {
-    if (!e.isFile()) continue
-    if (e.name.endsWith('.part')) continue
-    try {
-      const stat = fs.statSync(path.join(dir, e.name))
-      files.push({
-        name: e.name,
-        sizeBytes: stat.size,
-        modifiedAtMs: stat.mtimeMs,
-      })
-    } catch {
-      // skip transient fs errors
-    }
-  }
-  files.sort((a, b) => b.modifiedAtMs - a.modifiedAtMs)
-  return files
-}
+import {
+  buildLatestYml,
+  hashFile,
+  INSTALLER_EXT,
+  listArtifactFiles,
+  sanitizeFilename,
+  VERSION_FROM_NAME,
+} from '../updates-artifacts.js'
 
 export type RegisterPlatformAdminUpdatesRoutesOptions = {
-  /** Absolute parent directory; each product uses a subfolder (`bazar_one`, `sufra_lite`). */
   updatesDir: string
-  /** Max allowed size per uploaded file, in bytes. Defaults to 1 GiB. */
   maxFileBytes?: number
 }
 
@@ -127,14 +28,13 @@ export async function registerPlatformAdminUpdatesRoutes(
   opts: RegisterPlatformAdminUpdatesRoutesOptions,
 ): Promise<void> {
   const { updatesDir } = opts
-  const maxFileBytes = opts.maxFileBytes ?? 1024 * 1024 * 1024 // 1 GiB
+  const maxFileBytes = opts.maxFileBytes ?? 1024 * 1024 * 1024
 
   function scopedDir(query: unknown): string {
     const q = query as { product?: string }
     return resolveUpdatesDirForProduct(updatesDir, parsePlatformProductKey(q?.product))
   }
 
-  /** List files currently in the updates folder. */
   app.get('/api/platform/admin/updates/files', async (req, reply) => {
     const dir = scopedDir(req.query)
     const body: PlatformUpdateFilesResponse = {
@@ -145,12 +45,6 @@ export async function registerPlatformAdminUpdatesRoutes(
     return reply.send(body)
   })
 
-  /**
-   * Upload one or more release artifacts. Accepts `multipart/form-data` with
-   * any number of file parts. Each file is streamed to a `*.part` tempfile and
-   * atomically renamed into place on success. Existing files are overwritten
-   * (intentional — re-publishing a `latest.yml` is the common case).
-   */
   app.post('/api/platform/admin/updates/upload', async (req, reply) => {
     if (!req.isMultipart()) {
       return reply.status(400).send({ error: 'EXPECTED_MULTIPART' })
@@ -176,7 +70,6 @@ export async function registerPlatformAdminUpdatesRoutes(
         const safeName = sanitizeFilename(part.filename)
         if (!safeName) {
           rejected.push({ name: part.filename, reason: 'INVALID_NAME_OR_EXT' })
-          // Drain the stream so we don't leak file descriptors.
           part.file.resume()
           continue
         }
@@ -240,15 +133,6 @@ export async function registerPlatformAdminUpdatesRoutes(
     return reply.send(body)
   })
 
-  /**
-   * Publish a release: write a fresh `latest.yml` pointing at a named installer
-   * that already lives in the updates folder. This is what tells clients that
-   * a new version is live — electron-updater polls `latest.yml` for the
-   * current version + SHA-512 and downloads the file at `path:`.
-   *
-   * Version is taken from the request body if provided, otherwise auto-parsed
-   * from the filename (e.g. `Bazar One Setup 1.2.3.exe` → `1.2.3`).
-   */
   app.post<{
     Body: { installer?: string; version?: string; releaseDate?: string }
   }>('/api/platform/admin/updates/publish', async (req, reply) => {
@@ -337,7 +221,6 @@ export async function registerPlatformAdminUpdatesRoutes(
     return reply.send(body)
   })
 
-  /** Delete a single artifact by filename. */
   app.delete<{ Params: { name: string } }>(
     '/api/platform/admin/updates/files/:name',
     async (req, reply) => {

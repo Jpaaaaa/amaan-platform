@@ -42,7 +42,7 @@ export async function registerPlatformAuthRoutes(
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60,
     })
-    return reply.send({ ok: true })
+    return reply.send({ ok: true, token })
   })
 
   app.post('/api/platform/auth/logout', async (_req, reply) => {
