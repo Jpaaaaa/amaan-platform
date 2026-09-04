@@ -1,6 +1,6 @@
 export type SessionState = 'loading' | 'anon' | 'ok'
 
-export type TabId = 'devices' | 'releases' | 'settings'
+export type TabId = 'devices' | 'releases' | 'amanat' | 'settings'
 
 export type CustomUnit = 'seconds' | 'minutes' | 'hours' | 'days'
 

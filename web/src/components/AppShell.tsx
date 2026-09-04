@@ -6,6 +6,7 @@ import { Ico } from './icons'
 const TAB_LABELS: Record<TabId, string> = {
   devices: 'Devices',
   releases: 'Releases',
+  amanat: 'Amanat',
   settings: 'Settings',
 }
 
@@ -30,6 +31,8 @@ export function AppShell({
   onProductChange,
   onRefreshDevices,
   devicesLoading,
+  onRefreshAmanat,
+  amanatLoading,
   children,
 }: {
   tab: TabId
@@ -38,6 +41,8 @@ export function AppShell({
   onProductChange: (product: PlatformProductKey) => void
   onRefreshDevices?: () => void
   devicesLoading?: boolean
+  onRefreshAmanat?: () => void
+  amanatLoading?: boolean
   children: React.ReactNode
 }) {
   return (
@@ -54,23 +59,25 @@ export function AppShell({
                 className="h-full w-full object-contain"
               />
             </div>
-            <div className="flex shrink-0 gap-0.5 rounded-xl border border-slate-900/[0.08] bg-slate-900/[0.06] p-0.5">
-              {(['sufra_lite', 'bazar_one'] as const).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  className={cn(
-                    'h-7 cursor-pointer rounded-[9px] border-0 px-2 font-sans text-[0.625rem] font-extrabold uppercase tracking-wider transition-colors sm:px-2.5',
-                    product === p
-                      ? 'bg-white text-brand-deep shadow-sm'
-                      : 'bg-transparent text-slate-900/45 hover:bg-slate-900/[0.04] hover:text-label',
-                  )}
-                  onClick={() => onProductChange(p)}
-                >
-                  {p.split('_')[0].toUpperCase()}
-                </button>
-              ))}
-            </div>
+            {tab !== 'amanat' ? (
+              <div className="flex shrink-0 gap-0.5 rounded-xl border border-slate-900/[0.08] bg-slate-900/[0.06] p-0.5">
+                {(['sufra_lite', 'bazar_one'] as const).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={cn(
+                      'h-7 cursor-pointer rounded-[9px] border-0 px-2 font-sans text-[0.625rem] font-extrabold uppercase tracking-wider transition-colors sm:px-2.5',
+                      product === p
+                        ? 'bg-white text-brand-deep shadow-sm'
+                        : 'bg-transparent text-slate-900/45 hover:bg-slate-900/[0.04] hover:text-label',
+                    )}
+                    onClick={() => onProductChange(p)}
+                  >
+                    {p.split('_')[0].toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
 
           <h1 className="truncate px-1 text-center text-base font-extrabold leading-tight tracking-tight text-label sm:text-lg">
@@ -87,6 +94,17 @@ export function AppShell({
                 aria-label="Refresh devices"
               >
                 <div className={devicesLoading ? spinner : ''}>{Ico.refresh}</div>
+              </button>
+            ) : null}
+            {tab === 'amanat' && onRefreshAmanat ? (
+              <button
+                className={m3BtnText}
+                type="button"
+                onClick={onRefreshAmanat}
+                disabled={amanatLoading}
+                aria-label="Refresh subscriptions"
+              >
+                <div className={amanatLoading ? spinner : ''}>{Ico.refresh}</div>
               </button>
             ) : null}
           </div>
@@ -124,6 +142,17 @@ export function AppShell({
               {Ico.releases}
             </span>
             <span className="truncate text-[0.6875rem] font-semibold tracking-wide">Releases</span>
+          </button>
+          <button
+            type="button"
+            className={navItem(tab === 'amanat')}
+            onClick={() => onTabChange('amanat')}
+            aria-current={tab === 'amanat' ? 'page' : undefined}
+          >
+            <span className={navIconWrap(tab === 'amanat')} aria-hidden>
+              {Ico.amanat}
+            </span>
+            <span className="truncate text-[0.6875rem] font-semibold tracking-wide">Amanat</span>
           </button>
           <button
             type="button"

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { PlatformProductKey } from '@shared/platform-product'
 import { fetchAuthMe, logout } from './api/platform'
 import { AppShell } from './components/AppShell'
+import { AmanatTab } from './amanat/AmanatTab'
 import { DevicesTab } from './devices/DevicesTab'
 import { LoginPage } from './LoginPage'
 import { ReleasesTab } from './releases/ReleasesTab'
@@ -16,6 +17,8 @@ export function App() {
   const [product, setProduct] = useState<PlatformProductKey>('bazar_one')
   const [devicesRefreshNonce, setDevicesRefreshNonce] = useState(0)
   const [devicesLoading, setDevicesLoading] = useState(false)
+  const [amanatRefreshNonce, setAmanatRefreshNonce] = useState(0)
+  const [amanatLoading, setAmanatLoading] = useState(false)
 
   const onUnauthorized = useCallback(() => setSession('anon'), [])
 
@@ -63,6 +66,8 @@ export function App() {
       onProductChange={setProduct}
       onRefreshDevices={tab === 'devices' ? () => setDevicesRefreshNonce((n) => n + 1) : undefined}
       devicesLoading={devicesLoading}
+      onRefreshAmanat={tab === 'amanat' ? () => setAmanatRefreshNonce((n) => n + 1) : undefined}
+      amanatLoading={amanatLoading}
     >
       {tab === 'releases' && (
         <ReleasesTab product={product} onUnauthorized={onUnauthorized} />
@@ -75,6 +80,13 @@ export function App() {
           refreshNonce={devicesRefreshNonce}
           onLoadingChange={setDevicesLoading}
           onUnauthorized={onUnauthorized}
+        />
+      )}
+
+      {tab === 'amanat' && (
+        <AmanatTab
+          refreshNonce={amanatRefreshNonce}
+          onLoadingChange={setAmanatLoading}
         />
       )}
 
