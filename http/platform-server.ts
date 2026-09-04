@@ -12,6 +12,7 @@ import {
   resolvePlatformAdminAuthState,
 } from './platform-admin-auth.js'
 import { registerPlatformAdminRoutes } from './routes/platform-admin.routes.js'
+import { registerPlatformAdminActivationRoutes } from './routes/platform-admin-activation.routes.js'
 import { registerPlatformAdminUpdatesRoutes } from './routes/platform-admin-updates.routes.js'
 import { registerPlatformAuthRoutes } from './routes/platform-auth.routes.js'
 import { registerPlatformPingRoutes } from './routes/platform-ping.routes.js'
@@ -98,6 +99,7 @@ export async function startPlatformServer(opts: StartPlatformServerOptions): Pro
   }
 
   await registerPlatformAdminRoutes(app)
+  await registerPlatformAdminActivationRoutes(app)
   await registerPlatformAdminUpdatesRoutes(app, { updatesDir })
 
   const webRoot = opts.webDist

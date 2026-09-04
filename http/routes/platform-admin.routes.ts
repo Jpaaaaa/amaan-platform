@@ -1,7 +1,11 @@
 import type { FastifyInstance } from 'fastify'
-import type { PlatformLicenseTier } from '../../shared/types/platform-devices.js'
 import { persistPlatformDb, getPlatformDb } from '../../db/platform-db.js'
 import { parsePlatformProductKey, type PlatformProductKey } from '../../shared/platform-product.js'
+import { deleteActivationRequest } from '../../services/platform-activation.service.js'
+import {
+  parseDeviceActivationInput,
+  readRollingMaxMsFromBody,
+} from '../../services/platform-device-admin-input.js'
 import {
   assertTier,
   deleteDevice,
@@ -13,6 +17,7 @@ import {
   updateDeviceAdmin,
   upsertDevice,
 } from '../../services/platform-device.service.js'
+import type { PlatformLicenseTier } from '../../shared/types/platform-devices.js'
 
 function productFromQuery(query: unknown): PlatformProductKey {
   const q = query as { product?: string }
@@ -24,20 +29,6 @@ function productFromBody(body: unknown): PlatformProductKey {
     return parsePlatformProductKey(String((body as Record<string, unknown>).product))
   }
   return parsePlatformProductKey(undefined)
-}
-
-/** Own-property check + coerce string JSON numbers (some proxies/clients send strings). */
-function readRollingMaxMsFromBody(body: unknown): { v: number | null | undefined; err?: string } {
-  if (body == null || typeof body !== 'object') return { v: undefined }
-  if (!Object.prototype.hasOwnProperty.call(body, 'rollingMaxMs')) return { v: undefined }
-  const raw = (body as Record<string, unknown>).rollingMaxMs
-  if (raw === null) return { v: null }
-  if (typeof raw === 'number' && Number.isFinite(raw)) return { v: raw }
-  if (typeof raw === 'string' && raw.trim() !== '') {
-    const n = Number(raw.trim())
-    if (Number.isFinite(n)) return { v: n }
-  }
-  return { v: undefined, err: 'rollingMaxMs must be a finite number or null' }
 }
 
 export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise<void> {
@@ -75,36 +66,19 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
   }>('/api/platform/admin/devices', async (req, reply) => {
     const productKey = productFromBody(req.body)
     const machineId = typeof req.body?.machineId === 'string' ? req.body.machineId.trim() : ''
-    const tierRaw = typeof req.body?.tier === 'string' ? req.body.tier.trim() : ''
-    if (!machineId || !tierRaw) {
+    if (!machineId) {
       return reply.status(400).send({ error: 'VALIDATION', message: 'machineId and tier required' })
     }
-    try {
-      assertTier(tierRaw)
-    } catch {
-      return reply.status(400).send({ error: 'INVALID_TIER' })
-    }
-    const renew = Boolean(req.body?.renew)
-    const rawCustom = req.body?.customValidForMs
-    const customValidForMs =
-      typeof rawCustom === 'number' && Number.isFinite(rawCustom) ? rawCustom : undefined
-
-    const rollingRead = readRollingMaxMsFromBody(req.body)
-    if (rollingRead.err) {
-      return reply.status(400).send({ error: 'VALIDATION', message: rollingRead.err })
-    }
-    const rollingMaxMs = rollingRead.v
 
     const db = getPlatformDb()
     const existing = findDevice(db, productKey, machineId)
-    const needsCustomDuration = tierRaw === 'custom' && (renew || !existing)
-    if (needsCustomDuration) {
-      if (customValidForMs == null || customValidForMs <= 0) {
-        return reply.status(400).send({
-          error: 'VALIDATION',
-          message: 'customValidForMs (positive ms) required for custom tier when activating or renewing',
-        })
-      }
+    const renew = Boolean(req.body?.renew)
+    const parsed = parseDeviceActivationInput(req.body, { isNew: renew || !existing })
+    if (!parsed.ok) {
+      return reply.status(400).send({
+        error: parsed.error,
+        ...(parsed.message ? { message: parsed.message } : {}),
+      })
     }
 
     let row
@@ -112,12 +86,12 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
       row = upsertDevice(db, {
         productKey,
         machineId,
-        label: req.body?.label,
-        tier: tierRaw as PlatformLicenseTier,
-        notes: req.body?.notes,
+        label: parsed.label !== undefined ? parsed.label : req.body?.label,
+        tier: parsed.tier,
+        notes: parsed.notes !== undefined ? parsed.notes : req.body?.notes,
         renew,
-        customValidForMs,
-        rollingMaxMs,
+        customValidForMs: parsed.customValidForMs,
+        rollingMaxMs: parsed.rollingMaxMs,
       })
     } catch (e) {
       if (e instanceof Error && e.message === 'CUSTOM_DURATION_REQUIRED') {
@@ -210,8 +184,10 @@ export async function registerPlatformAdminRoutes(app: FastifyInstance): Promise
   }>('/api/platform/admin/devices/:machineId', async (req, reply) => {
     const productKey = productFromQuery(req.query)
     const mid = req.params.machineId.trim()
-    const ok = deleteDevice(getPlatformDb(), productKey, mid)
+    const db = getPlatformDb()
+    const ok = deleteDevice(db, productKey, mid)
     if (!ok) return reply.status(404).send({ error: 'NOT_FOUND' })
+    deleteActivationRequest(db, productKey, mid)
     persistPlatformDb()
     return reply.send({ ok: true })
   })
