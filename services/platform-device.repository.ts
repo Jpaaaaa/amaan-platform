@@ -1,13 +1,31 @@
 import type { Database as SqlDatabase } from 'sql.js'
-import type { PlatformProductKey } from '../shared/platform-product.js'
+import { isPlatformProductKey, type PlatformProductKey } from '../shared/platform-product.js'
 import type { PlatformDeviceRow, PlatformLicenseTier } from '../shared/types/platform-devices.js'
 import { assertTier, clampCustomValidForMs, computeExpiryFromTier } from './platform-device-tier.js'
 import { clampRollingOfflineWindowMs } from './platform-device-rolling.js'
 
+const DEVICE_SELECT = `
+  product_key, machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms,
+  created_at_ms, updated_at_ms, notes, rolling_max_ms,
+  store_name, phone, address_line, city, store_type, store_type_other,
+  owner_contact_name, store_updated_at_ms,
+  kpi_month_revenue_cents, kpi_month_gross_profit_cents, kpi_month_sale_count,
+  kpi_year_revenue_cents, kpi_year_gross_profit_cents, kpi_year_sale_count,
+  kpi_updated_at_ms
+`.trim()
+
+function nullableString(value: unknown): string | null {
+  return value != null && value !== '' ? String(value) : null
+}
+
+function nullableInt(value: unknown): number | null {
+  return value != null && value !== '' ? Number(value) : null
+}
+
 function rowFromStmt(row: Record<string, unknown> | undefined): PlatformDeviceRow | null {
   if (!row) return null
   const pk = String(row.product_key)
-  if (pk !== 'bazar_one' && pk !== 'sufra_lite') return null
+  if (!isPlatformProductKey(pk)) return null
   return {
     productKey: pk as PlatformProductKey,
     machineId: String(row.machine_id),
@@ -23,12 +41,27 @@ function rowFromStmt(row: Record<string, unknown> | undefined): PlatformDeviceRo
       row.rolling_max_ms != null && row.rolling_max_ms !== ''
         ? Number(row.rolling_max_ms)
         : null,
+    storeName: nullableString(row.store_name),
+    phone: nullableString(row.phone),
+    addressLine: nullableString(row.address_line),
+    city: nullableString(row.city),
+    storeType: nullableString(row.store_type),
+    storeTypeOther: nullableString(row.store_type_other),
+    ownerContactName: nullableString(row.owner_contact_name),
+    storeUpdatedAtMs: nullableInt(row.store_updated_at_ms),
+    kpiMonthRevenueCents: nullableInt(row.kpi_month_revenue_cents),
+    kpiMonthGrossProfitCents: nullableInt(row.kpi_month_gross_profit_cents),
+    kpiMonthSaleCount: nullableInt(row.kpi_month_sale_count),
+    kpiYearRevenueCents: nullableInt(row.kpi_year_revenue_cents),
+    kpiYearGrossProfitCents: nullableInt(row.kpi_year_gross_profit_cents),
+    kpiYearSaleCount: nullableInt(row.kpi_year_sale_count),
+    kpiUpdatedAtMs: nullableInt(row.kpi_updated_at_ms),
   }
 }
 
 export function listDevices(database: SqlDatabase, productKey: PlatformProductKey): PlatformDeviceRow[] {
   const stmt = database.prepare(
-    `SELECT product_key, machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms
+    `SELECT ${DEVICE_SELECT}
      FROM platform_devices WHERE product_key = ? ORDER BY updated_at_ms DESC`,
   )
   stmt.bind([productKey])
@@ -47,7 +80,7 @@ export function findDevice(
   machineId: string,
 ): PlatformDeviceRow | null {
   const stmt = database.prepare(
-    `SELECT product_key, machine_id, label, tier, expires_at_ms, revoked, last_sync_at_ms, created_at_ms, updated_at_ms, notes, rolling_max_ms
+    `SELECT ${DEVICE_SELECT}
      FROM platform_devices WHERE product_key = ? AND machine_id = ?`,
   )
   stmt.bind([productKey, machineId.trim()])

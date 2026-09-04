@@ -24,6 +24,67 @@ function ensureRollingMaxColumn(database: SqlDatabase): void {
   database.run('ALTER TABLE platform_devices ADD COLUMN rolling_max_ms INTEGER')
 }
 
+function ensureDeviceStoreColumns(database: SqlDatabase): void {
+  const columns: Array<[string, string]> = [
+    ['store_name', 'TEXT'],
+    ['phone', 'TEXT'],
+    ['address_line', 'TEXT'],
+    ['city', 'TEXT'],
+    ['store_type', 'TEXT'],
+    ['store_type_other', 'TEXT'],
+    ['owner_contact_name', 'TEXT'],
+    ['store_updated_at_ms', 'INTEGER'],
+  ]
+  for (const [name, type] of columns) {
+    if (columnExists(database, 'platform_devices', name)) continue
+    database.run(`ALTER TABLE platform_devices ADD COLUMN ${name} ${type}`)
+  }
+}
+
+function ensureDeviceKpiColumns(database: SqlDatabase): void {
+  const columns: Array<[string, string]> = [
+    ['kpi_month_revenue_cents', 'INTEGER'],
+    ['kpi_month_gross_profit_cents', 'INTEGER'],
+    ['kpi_month_sale_count', 'INTEGER'],
+    ['kpi_year_revenue_cents', 'INTEGER'],
+    ['kpi_year_gross_profit_cents', 'INTEGER'],
+    ['kpi_year_sale_count', 'INTEGER'],
+    ['kpi_updated_at_ms', 'INTEGER'],
+  ]
+  for (const [name, type] of columns) {
+    if (columnExists(database, 'platform_devices', name)) continue
+    database.run(`ALTER TABLE platform_devices ADD COLUMN ${name} ${type}`)
+  }
+}
+
+function ensureActivationRequestsTable(database: SqlDatabase): void {
+  if (tableExists(database, 'platform_activation_requests')) return
+  database.run(`
+    CREATE TABLE platform_activation_requests (
+      product_key         TEXT    NOT NULL,
+      machine_id          TEXT    NOT NULL,
+      status              TEXT    NOT NULL,
+      store_name          TEXT    NOT NULL,
+      phone               TEXT,
+      address_line        TEXT,
+      city                TEXT,
+      store_type          TEXT,
+      store_type_other    TEXT,
+      owner_contact_name  TEXT,
+      request_ip          TEXT,
+      created_at_ms       INTEGER NOT NULL,
+      updated_at_ms       INTEGER NOT NULL,
+      decided_at_ms       INTEGER,
+      decline_reason      TEXT,
+      PRIMARY KEY (product_key, machine_id)
+    );
+  `)
+  database.run(`
+    CREATE INDEX IF NOT EXISTS idx_activation_requests_status
+      ON platform_activation_requests (status, updated_at_ms DESC);
+  `)
+}
+
 /** New installs: composite PK (product + machine). */
 function createPlatformDevicesV2(database: SqlDatabase): void {
   database.run(`
@@ -95,13 +156,15 @@ function migratePlatformDevicesAddProductKey(database: SqlDatabase): void {
 export function runPlatformSchemaBootstrap(database: SqlDatabase): void {
   if (!tableExists(database, 'platform_devices')) {
     createPlatformDevicesV2(database)
-    ensureRollingMaxColumn(database)
-    return
-  }
-
-  if (!columnExists(database, 'platform_devices', 'product_key')) {
+  } else if (!columnExists(database, 'platform_devices', 'product_key')) {
     migratePlatformDevicesAddProductKey(database)
   }
 
-  ensureRollingMaxColumn(database)
+  if (tableExists(database, 'platform_devices')) {
+    ensureRollingMaxColumn(database)
+    ensureDeviceStoreColumns(database)
+    ensureDeviceKpiColumns(database)
+  }
+
+  ensureActivationRequestsTable(database)
 }
