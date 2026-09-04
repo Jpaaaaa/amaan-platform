@@ -3,13 +3,14 @@ import path from 'node:path'
 import cors from '@fastify/cors'
 import fastifyMultipart from '@fastify/multipart'
 import fastifyStatic from '@fastify/static'
-import Fastify from 'fastify'
+import Fastify, { type FastifyInstance } from 'fastify'
 import { initPlatformDb } from '../db/platform-db.js'
 import { loadPlatformEnvFile } from '../load-env.js'
 import {
   jwtVerifyRequest,
   registerPlatformAdminJwtPlugins,
   resolvePlatformAdminAuthState,
+  type PlatformAdminAuthState,
 } from './platform-admin-auth.js'
 import { registerPlatformAdminRoutes } from './routes/platform-admin.routes.js'
 import { registerPlatformAdminActivationRoutes } from './routes/platform-admin-activation.routes.js'
@@ -33,20 +34,25 @@ export type StartPlatformServerOptions = {
   updatesDir?: string
 }
 
-export async function startPlatformServer(opts: StartPlatformServerOptions): Promise<void> {
-  loadPlatformEnvFile()
-  await initPlatformDb(opts.dbPath)
+export type CreatePlatformAppOptions = {
+  webDist?: string
+  updatesDir?: string
+  /** When false, skip request logging (tests). Default true. */
+  logger?: boolean
+  authState?: PlatformAdminAuthState
+}
 
-  const authState = resolvePlatformAdminAuthState()
+/** Build the Fastify app without listening (tests use `inject`). */
+export async function createPlatformApp(opts: CreatePlatformAppOptions = {}): Promise<FastifyInstance> {
+  const authState = opts.authState ?? resolvePlatformAdminAuthState()
 
-  // Fastify's default body limit (1 MiB) is far too small for installer
-  // uploads; raise it so large multipart requests aren't rejected before the
-  // per-file limit in `@fastify/multipart` kicks in.
-  const app = Fastify({ logger: true, bodyLimit: 2 * 1024 * 1024 * 1024 })
+  const app = Fastify({
+    logger: opts.logger !== false,
+    bodyLimit: 2 * 1024 * 1024 * 1024,
+  })
   await app.register(cors, { origin: true, credentials: true })
   await app.register(fastifyMultipart, {
     limits: {
-      // Per-file cap; matches the default in registerPlatformAdminUpdatesRoutes.
       fileSize: 1024 * 1024 * 1024,
       files: 10,
     },
@@ -66,14 +72,13 @@ export async function startPlatformServer(opts: StartPlatformServerOptions): Pro
   await registerPlatformPingRoutes(app)
   await registerPlatformActivationRoutes(app)
 
-  // Per-product folders under `updatesDir` are served at `/updates/<product>/…`
   const updatesDir = path.resolve(opts.updatesDir ?? path.join(process.cwd(), 'platform-data', 'updates'))
   try {
     fs.mkdirSync(updatesDir, { recursive: true })
     ensureProductUpdateSubdirs(updatesDir)
     migrateLegacyRootUpdatesToBazar(updatesDir)
   } catch {
-    // non-fatal: route still returns `empty: true` and static falls through
+    // non-fatal
   }
   await app.register(fastifyStatic, {
     root: updatesDir,
@@ -120,6 +125,20 @@ export async function startPlatformServer(opts: StartPlatformServerOptions): Pro
       return reply.type('text/html').send(fs.createReadStream(indexHtml))
     })
   }
+
+  return app
+}
+
+export async function startPlatformServer(opts: StartPlatformServerOptions): Promise<void> {
+  loadPlatformEnvFile()
+  await initPlatformDb(opts.dbPath)
+
+  const authState = resolvePlatformAdminAuthState()
+  const app = await createPlatformApp({
+    webDist: opts.webDist,
+    updatesDir: opts.updatesDir,
+    authState,
+  })
 
   const host = opts.host ?? '0.0.0.0'
   await app.listen({ port: opts.port, host })

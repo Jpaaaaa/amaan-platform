@@ -24,6 +24,12 @@ const RENEWAL_WINDOW_MS = 7 * 86400000
 const lastWriteByMachine = new Map<string, number>()
 const ipRequestTimes = new Map<string, number[]>()
 
+/** Clears in-memory rate-limit state (integration tests only). */
+export function clearActivationRateLimitsForTests(): void {
+  lastWriteByMachine.clear()
+  ipRequestTimes.clear()
+}
+
 function pruneIpRequests(ip: string, now: number): number[] {
   const cutoff = now - IP_WINDOW_MS
   const prev = ipRequestTimes.get(ip) ?? []

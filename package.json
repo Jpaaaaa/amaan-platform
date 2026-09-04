@@ -7,7 +7,8 @@
     "platform:api": "tsx index.ts",
     "platform:web:dev": "npm run dev --prefix web",
     "platform:web:build": "npm run build --prefix web",
-    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run platform:api\" \"wait-on tcp:127.0.0.1:3850 && npm run platform:web:dev\""
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run platform:api\" \"wait-on tcp:127.0.0.1:3850 && npm run platform:web:dev\"",
+    "test": "tsx --test tests/integration/platform-api.test.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

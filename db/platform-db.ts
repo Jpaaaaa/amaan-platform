@@ -45,3 +45,11 @@ export function persistPlatformDb(): void {
   fs.mkdirSync(path.dirname(dbFilePath), { recursive: true })
   fs.writeFileSync(dbFilePath, Buffer.from(db.export()))
 }
+
+export function closePlatformDb(): void {
+  if (db) {
+    db.close()
+    db = null
+  }
+  dbFilePath = null
+}
