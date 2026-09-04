@@ -14,6 +14,8 @@ export {
   updateDeviceAdmin,
   deleteDevice,
   recordSync,
+  updateDeviceStoreSnapshot,
+  updateDeviceKpiSnapshot,
   type UpsertDeviceInput,
   type AdminDevicePatch,
 } from './platform-device.repository.js'

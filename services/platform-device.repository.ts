@@ -1,6 +1,7 @@
 import type { Database as SqlDatabase } from 'sql.js'
 import { isPlatformProductKey, type PlatformProductKey } from '../shared/platform-product.js'
 import type { PlatformDeviceRow, PlatformLicenseTier } from '../shared/types/platform-devices.js'
+import type { PlatformKpisIqd, PlatformStoreSnapshot } from '../shared/types/platform-activation.js'
 import { assertTier, clampCustomValidForMs, computeExpiryFromTier } from './platform-device-tier.js'
 import { clampRollingOfflineWindowMs } from './platform-device-rolling.js'
 
@@ -253,5 +254,66 @@ export function recordSync(
   database.run(
     `UPDATE platform_devices SET last_sync_at_ms = ?, updated_at_ms = ? WHERE product_key = ? AND machine_id = ?`,
     [now, now, productKey, machineId.trim()],
+  )
+}
+
+export function updateDeviceStoreSnapshot(
+  database: SqlDatabase,
+  productKey: PlatformProductKey,
+  machineId: string,
+  store: PlatformStoreSnapshot,
+): void {
+  const now = Date.now()
+  const mid = machineId.trim()
+  database.run(
+    `UPDATE platform_devices SET
+       store_name = ?, phone = ?, address_line = ?, city = ?,
+       store_type = ?, store_type_other = ?, owner_contact_name = ?,
+       store_updated_at_ms = ?
+     WHERE product_key = ? AND machine_id = ?`,
+    [
+      store.storeName,
+      store.phone,
+      store.addressLine,
+      store.city,
+      store.storeType,
+      store.storeTypeOther,
+      store.ownerContactName,
+      now,
+      productKey,
+      mid,
+    ],
+  )
+}
+
+export function updateDeviceKpiSnapshot(
+  database: SqlDatabase,
+  productKey: PlatformProductKey,
+  machineId: string,
+  kpis: PlatformKpisIqd,
+): void {
+  const now = Date.now()
+  const mid = machineId.trim()
+  database.run(
+    `UPDATE platform_devices SET
+       kpi_month_revenue_cents = ?,
+       kpi_month_gross_profit_cents = ?,
+       kpi_month_sale_count = ?,
+       kpi_year_revenue_cents = ?,
+       kpi_year_gross_profit_cents = ?,
+       kpi_year_sale_count = ?,
+       kpi_updated_at_ms = ?
+     WHERE product_key = ? AND machine_id = ?`,
+    [
+      kpis.month.revenueCents,
+      kpis.month.grossProfitCents,
+      kpis.month.saleCount,
+      kpis.year.revenueCents,
+      kpis.year.grossProfitCents,
+      kpis.year.saleCount,
+      now,
+      productKey,
+      mid,
+    ],
   )
 }

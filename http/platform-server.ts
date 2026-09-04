@@ -15,6 +15,7 @@ import { registerPlatformAdminRoutes } from './routes/platform-admin.routes.js'
 import { registerPlatformAdminUpdatesRoutes } from './routes/platform-admin-updates.routes.js'
 import { registerPlatformAuthRoutes } from './routes/platform-auth.routes.js'
 import { registerPlatformPingRoutes } from './routes/platform-ping.routes.js'
+import { registerPlatformActivationRoutes } from './routes/platform-activation.routes.js'
 import { registerPlatformUpdateRoutes } from './routes/platform-update.routes.js'
 import { ensureProductUpdateSubdirs, migrateLegacyRootUpdatesToBazar } from './platform-updates-dir.js'
 
@@ -62,6 +63,7 @@ export async function startPlatformServer(opts: StartPlatformServerOptions): Pro
   }))
 
   await registerPlatformPingRoutes(app)
+  await registerPlatformActivationRoutes(app)
 
   // Per-product folders under `updatesDir` are served at `/updates/<product>/…`
   const updatesDir = path.resolve(opts.updatesDir ?? path.join(process.cwd(), 'platform-data', 'updates'))
