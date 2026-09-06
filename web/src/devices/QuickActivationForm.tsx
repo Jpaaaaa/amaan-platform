@@ -17,6 +17,7 @@ import type { CustomUnit } from '../types/device'
 
 export function QuickActivationForm({
   loading,
+  hideMachineId,
   newMachineId,
   newLabel,
   newTier,
@@ -36,6 +37,7 @@ export function QuickActivationForm({
   onSubmit,
 }: {
   loading: boolean
+  hideMachineId?: boolean
   newMachineId: string
   newLabel: string
   newTier: string
@@ -56,23 +58,25 @@ export function QuickActivationForm({
 }) {
   return (
     <section className={bentoCard}>
-      <h2 className={bentoTitle}>Quick Activation</h2>
+      <h2 className={bentoTitle}>{hideMachineId ? 'Approve request' : 'Quick Activation'}</h2>
       <form onSubmit={(ev) => void onSubmit(ev)}>
         <div className={iosSection}>
-          <Field label="Machine ID" first>
-            <input
-              id="new-machine-id"
-              className={fieldInput}
-              required
-              value={newMachineId}
-              onChange={(e) => onMachineId(e.target.value)}
-              dir="ltr"
-              placeholder="WIN-ABC123-XYZ"
-              autoComplete="off"
-              spellCheck={false}
-            />
-          </Field>
-          <Field label="Label">
+          {hideMachineId ? null : (
+            <Field label="Machine ID" first>
+              <input
+                id="new-machine-id"
+                className={fieldInput}
+                required
+                value={newMachineId}
+                onChange={(e) => onMachineId(e.target.value)}
+                dir="ltr"
+                placeholder="WIN-ABC123-XYZ"
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </Field>
+          )}
+          <Field label="Label" first={hideMachineId}>
             <input
               id="new-label"
               className={fieldInput}
@@ -163,7 +167,13 @@ export function QuickActivationForm({
           className={cn(m3BtnPrimary, 'h-[52px] w-full rounded-2xl')}
           disabled={loading}
         >
-          {loading ? <span className={spinner} /> : <>{Ico.plus} Activate Device</>}
+          {loading ? (
+            <span className={spinner} />
+          ) : hideMachineId ? (
+            <>Approve</>
+          ) : (
+            <>{Ico.plus} Activate Device</>
+          )}
         </button>
       </form>
     </section>

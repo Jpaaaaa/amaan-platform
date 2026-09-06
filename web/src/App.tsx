@@ -1,14 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PlatformProductKey } from '@shared/platform-product'
+import { fetchActivationRequests } from './api/activation-requests'
 import { fetchAuthMe, logout } from './api/platform'
 import { AppShell } from './components/AppShell'
 import { AmanatTab } from './amanat/AmanatTab'
 import { DevicesTab } from './devices/DevicesTab'
 import { LoginPage } from './LoginPage'
 import { ReleasesTab } from './releases/ReleasesTab'
+import { RequestsTab } from './requests/RequestsTab'
 import { cn, m3BtnOutline, sectionLabel, spinner } from './lib/ui'
 import type { SessionState, TabId } from './types/device'
 import './styles.css'
+
+const PENDING_POLL_MS = 30_000
 
 export function App() {
   const [session, setSession] = useState<SessionState>('loading')
@@ -17,8 +21,12 @@ export function App() {
   const [product, setProduct] = useState<PlatformProductKey>('bazar_one')
   const [devicesRefreshNonce, setDevicesRefreshNonce] = useState(0)
   const [devicesLoading, setDevicesLoading] = useState(false)
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0)
   const [amanatRefreshNonce, setAmanatRefreshNonce] = useState(0)
   const [amanatLoading, setAmanatLoading] = useState(false)
+
+  const productRef = useRef(product)
+  productRef.current = product
 
   const onUnauthorized = useCallback(() => setSession('anon'), [])
 
@@ -37,6 +45,23 @@ export function App() {
       }
     })()
   }, [])
+
+  useEffect(() => {
+    if (session !== 'ok') return
+
+    const pollPending = async () => {
+      const result = await fetchActivationRequests(productRef.current, 'pending')
+      if (result.ok) {
+        setPendingRequestsCount(result.requests.length)
+      } else if (result.unauthorized) {
+        setPendingRequestsCount(0)
+      }
+    }
+
+    void pollPending()
+    const id = window.setInterval(() => void pollPending(), PENDING_POLL_MS)
+    return () => window.clearInterval(id)
+  }, [session, product])
 
   async function handleLogout() {
     try {
@@ -68,6 +93,7 @@ export function App() {
       devicesLoading={devicesLoading}
       onRefreshAmanat={tab === 'amanat' ? () => setAmanatRefreshNonce((n) => n + 1) : undefined}
       amanatLoading={amanatLoading}
+      pendingRequestsCount={pendingRequestsCount}
     >
       {tab === 'releases' && (
         <ReleasesTab product={product} onUnauthorized={onUnauthorized} />
@@ -79,6 +105,16 @@ export function App() {
           product={product}
           refreshNonce={devicesRefreshNonce}
           onLoadingChange={setDevicesLoading}
+          onUnauthorized={onUnauthorized}
+        />
+      )}
+
+      {tab === 'requests' && (
+        <RequestsTab
+          key={product}
+          product={product}
+          refreshNonce={0}
+          onLoadingChange={() => {}}
           onUnauthorized={onUnauthorized}
         />
       )}

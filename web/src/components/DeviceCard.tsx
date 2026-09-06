@@ -2,7 +2,7 @@ import { cn, deviceCard, statusBadge, statusDot } from '../lib/ui'
 import type { DeviceRow } from '../types/device'
 
 export function DeviceCard({ d, onOpen }: { d: DeviceRow; onOpen: (d: DeviceRow) => void }) {
-  const name = d.label?.trim() ? d.label : 'Unnamed Device'
+  const name = d.label?.trim() ? d.label : d.storeName?.trim() ? d.storeName : 'Unnamed Device'
   const isRevoked = d.revoked
   return (
     <button type="button" className={deviceCard} onClick={() => onOpen(d)}>

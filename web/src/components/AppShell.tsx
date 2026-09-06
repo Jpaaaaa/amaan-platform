@@ -5,6 +5,7 @@ import { Ico } from './icons'
 
 const TAB_LABELS: Record<TabId, string> = {
   devices: 'Devices',
+  requests: 'Requests',
   releases: 'Releases',
   amanat: 'Amanat',
   settings: 'Settings',
@@ -33,6 +34,7 @@ export function AppShell({
   devicesLoading,
   onRefreshAmanat,
   amanatLoading,
+  pendingRequestsCount,
   children,
 }: {
   tab: TabId
@@ -43,6 +45,7 @@ export function AppShell({
   devicesLoading?: boolean
   onRefreshAmanat?: () => void
   amanatLoading?: boolean
+  pendingRequestsCount?: number
   children: React.ReactNode
 }) {
   return (
@@ -120,7 +123,7 @@ export function AppShell({
         role="navigation"
         aria-label="Primary"
       >
-        <div className="mx-auto flex h-[72px] max-w-[600px] items-stretch justify-around gap-1 px-2 pt-1.5">
+        <div className="mx-auto flex h-[72px] max-w-[600px] items-stretch justify-around gap-0.5 px-1 pt-1.5 sm:gap-1 sm:px-2">
           <button
             type="button"
             className={navItem(tab === 'devices')}
@@ -130,7 +133,23 @@ export function AppShell({
             <span className={navIconWrap(tab === 'devices')} aria-hidden>
               {Ico.devices}
             </span>
-            <span className="truncate text-[0.6875rem] font-semibold tracking-wide">Devices</span>
+            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Devices</span>
+          </button>
+          <button
+            type="button"
+            className={navItem(tab === 'requests')}
+            onClick={() => onTabChange('requests')}
+            aria-current={tab === 'requests' ? 'page' : undefined}
+          >
+            <span className={cn(navIconWrap(tab === 'requests'), 'relative')} aria-hidden>
+              {Ico.requests}
+              {pendingRequestsCount != null && pendingRequestsCount > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.625rem] font-bold leading-none text-white">
+                  {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
+                </span>
+              ) : null}
+            </span>
+            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Requests</span>
           </button>
           <button
             type="button"
@@ -141,7 +160,7 @@ export function AppShell({
             <span className={navIconWrap(tab === 'releases')} aria-hidden>
               {Ico.releases}
             </span>
-            <span className="truncate text-[0.6875rem] font-semibold tracking-wide">Releases</span>
+            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Releases</span>
           </button>
           <button
             type="button"
@@ -152,7 +171,7 @@ export function AppShell({
             <span className={navIconWrap(tab === 'amanat')} aria-hidden>
               {Ico.amanat}
             </span>
-            <span className="truncate text-[0.6875rem] font-semibold tracking-wide">Amanat</span>
+            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Amanat</span>
           </button>
           <button
             type="button"
@@ -163,7 +182,7 @@ export function AppShell({
             <span className={navIconWrap(tab === 'settings')} aria-hidden>
               {Ico.settings}
             </span>
-            <span className="truncate text-[0.6875rem] font-semibold tracking-wide">Settings</span>
+            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Settings</span>
           </button>
         </div>
       </nav>
