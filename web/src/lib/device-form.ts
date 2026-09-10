@@ -43,6 +43,27 @@ export function parseDatetimeLocal(s: string): number | null {
   return Number.isFinite(ms) ? ms : null
 }
 
+/** Same calendar-month overflow as date-fns `addMonths` (Jan 31 + 1m → Feb 28/29). */
+function addCalendarMonths(issuedAtMs: number, months: number): number {
+  const d = new Date(issuedAtMs)
+  const day = d.getDate()
+  d.setDate(1)
+  d.setMonth(d.getMonth() + months)
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  d.setDate(Math.min(day, last))
+  return d.getTime()
+}
+
+/** Matches server `computeExpiryFromTier`: now + tier duration. `custom`/`lifetime` → null. */
+export function computeExpiryFromTier(issuedAtMs: number, tier: string): number | null {
+  if (tier === 'lifetime' || tier === 'custom') return null
+  if (tier === '5d') return issuedAtMs + 5 * 86_400_000
+  if (tier === '15d') return issuedAtMs + 15 * 86_400_000
+  if (tier === '1m') return addCalendarMonths(issuedAtMs, 1)
+  if (tier === '2m') return addCalendarMonths(issuedAtMs, 2)
+  return null
+}
+
 export function fmtDate(ms: number | null) {
   if (ms == null) return '—'
   return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })

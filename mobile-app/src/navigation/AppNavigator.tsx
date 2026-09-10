@@ -1,9 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { ActivityIndicator, View } from 'react-native'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
-import { logout } from '../api/client'
+import { getStoredToken, logout } from '../api/client'
 import { DevicesScreen } from '../screens/DevicesScreen'
+import { LoginScreen } from '../screens/LoginScreen'
 import { ReleasesScreen } from '../screens/ReleasesScreen'
 import { SettingsScreen } from '../screens/SettingsScreen'
 
@@ -23,7 +25,6 @@ const Tab = createBottomTabNavigator<MainTabParamList>()
 
 function MainTabs({ onLogout }: { onLogout: () => void }) {
   const onUnauthorized = useCallback(() => {
-    void logout()
     onLogout()
   }, [onLogout])
 
@@ -59,31 +60,40 @@ function MainTabs({ onLogout }: { onLogout: () => void }) {
 }
 
 export function AppNavigator() {
-  // TODO: re-enable auth — restore token check, booting state, and Login screen
+  const [booting, setBooting] = useState(true)
+  const [signedIn, setSignedIn] = useState(false)
+
+  useEffect(() => {
+    void getStoredToken().then((token) => {
+      setSignedIn(Boolean(token))
+      setBooting(false)
+    })
+  }, [])
+
+  const onLogout = useCallback(() => {
+    void logout()
+    setSignedIn(false)
+  }, [])
+
+  if (booting) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <ActivityIndicator color="#0a6cff" />
+      </View>
+    )
+  }
+
   return (
-    <Stack.Navigator
-      screenOptions={{ headerShown: false }}
-      initialRouteName="Main"
-    >
-      {/* <Stack.Screen name="Login">
-        {({ navigation }) => (
-          <LoginScreen
-            onLoggedIn={() => {
-              setSignedIn(true)
-              navigation.reset({ index: 0, routes: [{ name: 'Main' }] })
-            }}
-          />
-        )}
-      </Stack.Screen> */}
-      <Stack.Screen name="Main">
-        {() => (
-          <MainTabs
-            onLogout={() => {
-              void logout()
-            }}
-          />
-        )}
-      </Stack.Screen>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      {signedIn ? (
+        <Stack.Screen name="Main">
+          {() => <MainTabs onLogout={onLogout} />}
+        </Stack.Screen>
+      ) : (
+        <Stack.Screen name="Login">
+          {() => <LoginScreen onLoggedIn={() => setSignedIn(true)} />}
+        </Stack.Screen>
+      )}
     </Stack.Navigator>
   )
 }
