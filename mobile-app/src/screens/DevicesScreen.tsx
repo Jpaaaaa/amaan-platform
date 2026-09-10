@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Modal,
   Pressable,
@@ -9,7 +10,7 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { createDevice, getDevices } from '../api/client'
+import { createDevice, getDevices, revokeDevice } from '../api/client'
 import { DeviceCard } from '../components/DeviceCard'
 import { ProductSwitcher } from '../components/ProductSwitcher'
 import type { DeviceRow, PlatformProductKey } from '../types'
@@ -31,6 +32,8 @@ export function DevicesScreen({ onUnauthorized }: Props) {
   const [label, setLabel] = useState('')
   const [tier, setTier] = useState<string>('1m')
   const [saving, setSaving] = useState(false)
+  const [detail, setDetail] = useState<DeviceRow | null>(null)
+  const [revoking, setRevoking] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,6 +86,39 @@ export function DevicesScreen({ onUnauthorized }: Props) {
     void load()
   }
 
+  function confirmToggleRevoke(device: DeviceRow) {
+    const nextRevoked = !device.revoked
+    Alert.alert(
+      nextRevoked ? 'Revoke device?' : 'Restore device?',
+      device.machineId,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: nextRevoked ? 'Revoke' : 'Restore',
+          style: nextRevoked ? 'destructive' : 'default',
+          onPress: () => void onToggleRevoke(device, nextRevoked),
+        },
+      ],
+    )
+  }
+
+  async function onToggleRevoke(device: DeviceRow, nextRevoked: boolean) {
+    setRevoking(true)
+    setError(null)
+    const r = await revokeDevice(product, device.machineId, nextRevoked)
+    setRevoking(false)
+    if (!r.ok) {
+      if (r.unauthorized) {
+        onUnauthorized()
+        return
+      }
+      setError(r.error)
+      return
+    }
+    setDetail(null)
+    void load()
+  }
+
   return (
     <View style={styles.root}>
       <ProductSwitcher value={product} onChange={setProduct} />
@@ -93,7 +129,15 @@ export function DevicesScreen({ onUnauthorized }: Props) {
         <FlatList
           data={devices}
           keyExtractor={(d) => d.machineId}
-          renderItem={({ item }) => <DeviceCard device={item} />}
+          renderItem={({ item }) => (
+            <DeviceCard
+              device={item}
+              onPress={(d) => {
+                setError(null)
+                setDetail(d)
+              }}
+            />
+          )}
           ListEmptyComponent={
             <Text style={styles.empty}>No devices registered for this product.</Text>
           }
@@ -102,11 +146,58 @@ export function DevicesScreen({ onUnauthorized }: Props) {
         />
       )}
 
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error && !detail ? <Text style={styles.error}>{error}</Text> : null}
 
       <Pressable style={styles.fab} onPress={() => setModalOpen(true)}>
         <Text style={styles.fabText}>+</Text>
       </Pressable>
+
+      <Modal visible={detail != null} animationType="slide" transparent>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Device</Text>
+            {detail ? (
+              <>
+                <Text style={styles.detailName}>
+                  {detail.label?.trim() ? detail.label : 'Unnamed Device'}
+                </Text>
+                <Text style={styles.detailId}>{detail.machineId}</Text>
+                <Text style={styles.detailMeta}>
+                  {detail.tier} · {detail.computedStatus}
+                  {detail.revoked ? ' · revoked' : ''}
+                </Text>
+              </>
+            ) : null}
+
+            {error ? <Text style={styles.error}>{error}</Text> : null}
+
+            <View style={styles.modalActions}>
+              <Pressable style={styles.cancelBtn} onPress={() => setDetail(null)}>
+                <Text style={styles.cancelText}>Close</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.saveBtn,
+                  detail?.revoked ? styles.restoreBtn : styles.revokeBtn,
+                  revoking && styles.saveBtnDisabled,
+                ]}
+                onPress={() => {
+                  if (detail) confirmToggleRevoke(detail)
+                }}
+                disabled={revoking || !detail}
+              >
+                {revoking ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveText}>
+                    {detail?.revoked ? 'Restore' : 'Revoke'}
+                  </Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={modalOpen} animationType="slide" transparent>
         <View style={styles.modalBackdrop}>
@@ -223,6 +314,30 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 16,
     color: '#0f172a',
+  },
+  detailName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
+  },
+  detailId: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    color: '#64748b',
+    marginBottom: 6,
+  },
+  detailMeta: {
+    fontSize: 13,
+    color: '#475569',
+    marginBottom: 16,
+    textTransform: 'capitalize',
+  },
+  revokeBtn: {
+    backgroundColor: '#dc2626',
+  },
+  restoreBtn: {
+    backgroundColor: '#15803d',
   },
   fieldLabel: {
     fontSize: 12,

@@ -10,6 +10,7 @@ import {
 import { Ico } from '../components/icons'
 import { alertBox } from '../lib/ui'
 import {
+  computeExpiryFromTier,
   msToDatetimeLocal,
   msToOfflineDaysMinutes,
   parseDatetimeLocal,
@@ -62,6 +63,7 @@ export function DevicesTab({
   const [editRollingDays, setEditRollingDays] = useState('')
   const [editRollingMinutes, setEditRollingMinutes] = useState('')
   const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
 
   const [detailRow, setDetailRow] = useState<DeviceRow | null>(null)
 
@@ -96,6 +98,7 @@ export function DevicesTab({
     setEditOpen(false)
     setEditRow(null)
     setEditSaving(false)
+    setEditError(null)
     setDetailRow(null)
     const forProduct = product
     setLoading(true)
@@ -164,6 +167,7 @@ export function DevicesTab({
     setEditRollingDays(days)
     setEditRollingMinutes(minutes)
     setEditOpen(true)
+    setEditError(null)
     setError(null)
   }
 
@@ -171,26 +175,37 @@ export function DevicesTab({
     setEditOpen(false)
     setEditRow(null)
     setEditSaving(false)
+    setEditError(null)
+  }
+
+  function applyEditTier(nextTier: string) {
+    setEditTier(nextTier)
+    if (nextTier === 'lifetime') {
+      setEditExpires('')
+      return
+    }
+    const ms = computeExpiryFromTier(Date.now(), nextTier)
+    if (ms != null) setEditExpires(msToDatetimeLocal(ms))
   }
 
   async function saveEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editRow) return
-    setError(null)
+    setEditError(null)
     const expiresAtMs = editTier === 'lifetime' ? null : parseDatetimeLocal(editExpires)
     if (editTier !== 'lifetime' && expiresAtMs == null) {
-      setError('Set expiry date or choose Lifetime.')
+      setEditError('Set expiry date or choose Lifetime.')
       return
     }
     const lastSyncTrim = editLastSync.trim()
     const lastSyncAtMs = lastSyncTrim ? parseDatetimeLocal(lastSyncTrim) : null
     if (lastSyncTrim && lastSyncAtMs == null) {
-      setError('Invalid last sync date.')
+      setEditError('Invalid last sync date.')
       return
     }
     const rollingParsed = parseOfflineGraceMs(editRollingDays, editRollingMinutes)
     if (rollingParsed === 'err') {
-      setError('Offline grace: use whole numbers (days and minutes ≥ 0).')
+      setEditError('Offline grace: use whole numbers (days and minutes ≥ 0).')
       return
     }
     setEditSaving(true)
@@ -207,11 +222,13 @@ export function DevicesTab({
       })
       if (!result.ok) {
         if (result.unauthorized) onUnauthorized()
-        setError(result.error)
+        setEditError(result.error)
         return
       }
       closeEdit()
       await load(product)
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : String(err))
     } finally {
       setEditSaving(false)
     }
@@ -295,9 +312,10 @@ export function DevicesTab({
           editRollingDays={editRollingDays}
           editRollingMinutes={editRollingMinutes}
           editSaving={editSaving}
+          editError={editError}
           onEditLabel={setEditLabel}
           onEditNotes={setEditNotes}
-          onEditTier={setEditTier}
+          onEditTier={applyEditTier}
           onEditExpires={setEditExpires}
           onEditLastSync={setEditLastSync}
           onEditRollingDays={setEditRollingDays}

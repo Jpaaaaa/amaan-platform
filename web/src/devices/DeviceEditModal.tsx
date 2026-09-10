@@ -1,5 +1,7 @@
 import { Field } from '../components/Field'
+import { Ico } from '../components/icons'
 import {
+  alertBox,
   cn,
   fieldInline,
   fieldInput,
@@ -28,6 +30,7 @@ export function DeviceEditModal({
   editRollingDays,
   editRollingMinutes,
   editSaving,
+  editError,
   onEditLabel,
   onEditNotes,
   onEditTier,
@@ -47,6 +50,7 @@ export function DeviceEditModal({
   editRollingDays: string
   editRollingMinutes: string
   editSaving: boolean
+  editError: string | null
   onEditLabel: (v: string) => void
   onEditNotes: (v: string) => void
   onEditTier: (v: string) => void
@@ -92,6 +96,13 @@ export function DeviceEditModal({
             {editRow.machineId}
           </p>
 
+          {editError ? (
+            <div className={cn(alertBox, 'mx-4 mb-3')} role="alert">
+              <span className="shrink-0 text-red-600">{Ico.exclamation}</span>
+              <span>{editError}</span>
+            </div>
+          ) : null}
+
           <form id="edit-form" onSubmit={(ev) => void onSave(ev)}>
             <div className={cn(iosSection, 'mb-2 rounded-none')}>
               <Field label="Label" first>
@@ -108,11 +119,7 @@ export function DeviceEditModal({
                   id="edit-tier"
                   className={fieldSelect}
                   value={editTier}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    onEditTier(v)
-                    if (v === 'lifetime') onEditExpires('')
-                  }}
+                  onChange={(e) => onEditTier(e.target.value)}
                 >
                   <option value="5d">5 days</option>
                   <option value="15d">15 days</option>

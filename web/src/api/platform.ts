@@ -114,28 +114,32 @@ export type PatchDeviceInput = {
 export async function patchDevice(input: PatchDeviceInput): Promise<
   { ok: true } | { ok: false; unauthorized: boolean; error: string }
 > {
-  const r = await fetch(
-    `/api/platform/admin/devices/${encodeURIComponent(input.machineId)}${productQuery(input.product)}`,
-    {
-      method: 'PATCH',
-      headers: JSON_HEADERS,
-      credentials: 'include',
-      body: JSON.stringify({
-        label: input.label,
-        notes: input.notes,
-        tier: input.tier,
-        expiresAtMs: input.expiresAtMs,
-        lastSyncAtMs: input.lastSyncAtMs,
-        rollingMaxMs: input.rollingMaxMs,
-      }),
-    },
-  )
-  if (r.status === 401) return { ok: false, unauthorized: true, error: 'Sign in required.' }
-  if (!r.ok) {
-    const j = (await r.json().catch(() => ({}))) as { error?: string; message?: string }
-    return { ok: false, unauthorized: false, error: j.message ?? j.error ?? r.statusText }
+  try {
+    const r = await fetch(
+      `/api/platform/admin/devices/${encodeURIComponent(input.machineId)}${productQuery(input.product)}`,
+      {
+        method: 'PATCH',
+        headers: JSON_HEADERS,
+        credentials: 'include',
+        body: JSON.stringify({
+          label: input.label,
+          notes: input.notes,
+          tier: input.tier,
+          expiresAtMs: input.expiresAtMs,
+          lastSyncAtMs: input.lastSyncAtMs,
+          rollingMaxMs: input.rollingMaxMs,
+        }),
+      },
+    )
+    if (r.status === 401) return { ok: false, unauthorized: true, error: 'Sign in required.' }
+    if (!r.ok) {
+      const j = (await r.json().catch(() => ({}))) as { error?: string; message?: string }
+      return { ok: false, unauthorized: false, error: j.message ?? j.error ?? r.statusText }
+    }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, unauthorized: false, error: e instanceof Error ? e.message : String(e) }
   }
-  return { ok: true }
 }
 
 export async function deleteDevice(
