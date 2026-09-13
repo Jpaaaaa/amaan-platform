@@ -1,12 +1,32 @@
 export const PLATFORM_PRODUCT_BAZAR = 'bazar_one' as const
 export const PLATFORM_PRODUCT_SUFRA = 'sufra_lite' as const
+export const PLATFORM_PRODUCT_AMANAT = 'amanat' as const
 
-export const PLATFORM_PRODUCT_KEYS = [
+export const PLATFORM_LICENSE_PRODUCT_KEYS = [
   PLATFORM_PRODUCT_BAZAR,
   PLATFORM_PRODUCT_SUFRA,
 ] as const
 
+export type PlatformLicenseProductKey = (typeof PLATFORM_LICENSE_PRODUCT_KEYS)[number]
+
+export const PLATFORM_PRODUCT_KEYS = [
+  ...PLATFORM_LICENSE_PRODUCT_KEYS,
+  PLATFORM_PRODUCT_AMANAT,
+] as const
+
 export type PlatformProductKey = (typeof PLATFORM_PRODUCT_KEYS)[number]
+
+const LICENSE_KEY_SET = new Set<string>(PLATFORM_LICENSE_PRODUCT_KEYS)
+
+export function isAmanatProduct(product: PlatformProductKey): boolean {
+  return product === PLATFORM_PRODUCT_AMANAT
+}
+
+export function isLicenseProduct(
+  product: PlatformProductKey,
+): product is PlatformLicenseProductKey {
+  return LICENSE_KEY_SET.has(product)
+}
 
 export type PlatformLicenseTier =
   | '5d'

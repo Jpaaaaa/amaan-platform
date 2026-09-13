@@ -12,7 +12,9 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
 import { getActivationRequests, getDevices } from '../api/client'
+import { AmanatGate } from '../components/AmanatGate'
 import { DeviceCard } from '../components/DeviceCard'
+import { SubscriptionsPane } from '../components/SubscriptionsPane'
 import { DeviceCreateSheet } from '../components/DeviceCreateSheet'
 import { DeviceDetailSheet } from '../components/DeviceDetailSheet'
 import { DeviceEditModal } from '../components/DeviceEditModal'
@@ -25,8 +27,9 @@ import { FilterBar } from '../components/ui/FilterBar'
 import { SearchField } from '../components/ui/SearchField'
 import { tabBarHeight } from '../constants/layout'
 import { useWorkspace } from '../context/WorkspaceContext'
+import { asAmanatFilter, asLicenseFilter } from '../lib/workspace-intent'
 import type { MainTabParamList } from '../navigation/types'
-import type { DeviceRow } from '../types'
+import { isAmanatProduct, type DeviceRow } from '../types'
 import { deviceHealth, type DeviceHealth } from '../utils/deviceDisplay'
 import { color, radius, shadow } from '../theme'
 
@@ -53,7 +56,8 @@ export function DevicesScreen({ onUnauthorized }: Props) {
   const [filter, setFilter] = useState<FilterKey>('all')
 
   useEffect(() => {
-    if (route.params?.filter) setFilter(route.params.filter)
+    const next = asLicenseFilter(route.params?.filter)
+    if (next) setFilter(next)
   }, [route.params?.filter])
 
   useEffect(() => {
@@ -69,11 +73,21 @@ export function DevicesScreen({ onUnauthorized }: Props) {
   }, [route.params?.inbox, navigation])
 
   const refreshPending = useCallback(async () => {
+    if (isAmanatProduct(product)) {
+      setPendingCount(0)
+      return
+    }
     const r = await getActivationRequests(product, 'pending')
     if (r.ok) setPendingCount(r.requests.length)
   }, [product])
 
   const load = useCallback(async () => {
+    if (isAmanatProduct(product)) {
+      setDevices([])
+      setLoading(false)
+      setError(null)
+      return
+    }
     setLoading(true)
     setError(null)
     const r = await getDevices(product)
@@ -139,11 +153,31 @@ export function DevicesScreen({ onUnauthorized }: Props) {
     <View style={styles.root}>
       <AppHeader
         title="Workspaces"
-        subtitle={`${devices.length} licensed devices`}
+        subtitle={
+          isAmanatProduct(product)
+            ? 'Real estate subscriptions'
+            : `${devices.length} licensed devices`
+        }
       />
       <View style={styles.toolbar}>
         <WorkspaceSwitcher />
-        <View style={styles.gap} />
+      </View>
+
+      {isAmanatProduct(product) ? (
+        <View style={{ flex: 1 }}>
+          <AmanatGate>
+            {({ signOut }) => (
+              <SubscriptionsPane
+                intentFilter={asAmanatFilter(route.params?.filter)}
+                onUnauthorized={() => void signOut()}
+                onSignOut={() => void signOut()}
+              />
+            )}
+          </AmanatGate>
+        </View>
+      ) : (
+      <>
+      <View style={[styles.toolbar, { paddingTop: 0 }]}>
         <Pressable
           onPress={() => setInboxOpen(true)}
           style={({ pressed }) => [styles.requestsBtn, pressed && { opacity: 0.92 }]}
@@ -237,40 +271,46 @@ export function DevicesScreen({ onUnauthorized }: Props) {
       >
         <MaterialIcons name="add" size={26} color="#fff" />
       </Pressable>
+      </>
+      )}
 
-      <DeviceDetailSheet
-        visible={selected != null && !editOpen}
-        device={selected}
-        product={product}
-        onClose={() => setSelected(null)}
-        onEdit={() => setEditOpen(true)}
-        onChanged={() => void load()}
-        onUnauthorized={onUnauthorized}
-      />
-      <DeviceEditModal
-        visible={editOpen && selected != null}
-        device={selected}
-        product={product}
-        onClose={() => setEditOpen(false)}
-        onSaved={() => {
-          setEditOpen(false)
-          void load()
-        }}
-        onUnauthorized={onUnauthorized}
-      />
-      <DeviceCreateSheet
-        visible={createOpen}
-        product={product}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => void load()}
-        onUnauthorized={onUnauthorized}
-      />
-      <RequestsSheet
-        visible={inboxOpen}
-        onClose={() => setInboxOpen(false)}
-        onUnauthorized={onUnauthorized}
-        onChanged={() => void refreshPending()}
-      />
+      {isAmanatProduct(product) ? null : (
+        <>
+          <DeviceDetailSheet
+            visible={selected != null && !editOpen}
+            device={selected}
+            product={product}
+            onClose={() => setSelected(null)}
+            onEdit={() => setEditOpen(true)}
+            onChanged={() => void load()}
+            onUnauthorized={onUnauthorized}
+          />
+          <DeviceEditModal
+            visible={editOpen && selected != null}
+            device={selected}
+            product={product}
+            onClose={() => setEditOpen(false)}
+            onSaved={() => {
+              setEditOpen(false)
+              void load()
+            }}
+            onUnauthorized={onUnauthorized}
+          />
+          <DeviceCreateSheet
+            visible={createOpen}
+            product={product}
+            onClose={() => setCreateOpen(false)}
+            onCreated={() => void load()}
+            onUnauthorized={onUnauthorized}
+          />
+          <RequestsSheet
+            visible={inboxOpen}
+            onClose={() => setInboxOpen(false)}
+            onUnauthorized={onUnauthorized}
+            onChanged={() => void refreshPending()}
+          />
+        </>
+      )}
     </View>
   )
 }

@@ -9,15 +9,10 @@ import {
   fieldSuffix,
   fieldTextarea,
   iosSection,
-  sheetBackdrop,
-  sheetContent,
-  sheetNav,
-  sheetNavBtn,
-  sheetNavBtnBold,
-  sheetNavTitle,
-  sheetPanel,
+  m3BtnPrimary,
   spinner,
 } from '../lib/ui'
+import { Overlay } from '../components/ui/Overlay'
 import type { DeviceRow } from '../types/device'
 
 export function DeviceEditModal({
@@ -62,42 +57,28 @@ export function DeviceEditModal({
   onSave: (e: React.FormEvent) => void
 }) {
   return (
-    <div
-      role="presentation"
-      className={sheetBackdrop}
-      onClick={onClose}
-      onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
+    <Overlay
+      open
+      title="Edit device"
+      onClose={onClose}
+      footer={
+        <button
+          id="edit-save-btn"
+          className={cn(m3BtnPrimary, 'h-11 w-full')}
+          type="button"
+          onClick={(e) => void onSave(e as unknown as React.FormEvent)}
+          disabled={editSaving}
+        >
+          {editSaving ? <span className={cn(spinner, 'h-3.5 w-3.5')} /> : 'Save'}
+        </button>
+      }
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-sheet-title"
-        className={sheetPanel}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className={sheetNav}>
-          <button id="edit-cancel-btn" className={sheetNavBtn} type="button" onClick={onClose} disabled={editSaving}>
-            Cancel
-          </button>
-          <span id="edit-sheet-title" className={sheetNavTitle}>Edit device</span>
-          <button
-            id="edit-save-btn"
-            className={sheetNavBtnBold}
-            type="button"
-            onClick={(e) => void onSave(e as unknown as React.FormEvent)}
-            disabled={editSaving}
-          >
-            {editSaving ? <span className={cn(spinner, 'h-3.5 w-3.5')} /> : 'Save'}
-          </button>
-        </div>
-
-        <div className={sheetContent}>
-          <p className="break-all px-4 pb-1.5 font-mono text-xs leading-normal text-label-3">
+          <p className="break-all pb-1.5 font-mono text-xs leading-normal text-label-3">
             {editRow.machineId}
           </p>
 
           {editError ? (
-            <div className={cn(alertBox, 'mx-4 mb-3')} role="alert">
+            <div className={cn(alertBox, 'mb-3')} role="alert">
               <span className="shrink-0 text-red-600">{Ico.exclamation}</span>
               <span>{editError}</span>
             </div>
@@ -192,8 +173,6 @@ export function DeviceEditModal({
               </Field>
             </div>
           </form>
-        </div>
-      </div>
-    </div>
+    </Overlay>
   )
 }

@@ -8,7 +8,14 @@ import {
   toggleRevokeDevice,
 } from '../api/platform'
 import { Ico } from '../components/icons'
-import { alertBox } from '../lib/ui'
+import { MetricCard } from '../components/ui/DeckPrimitives'
+import { FilterBar } from '../components/ui/FilterBar'
+import { Overlay } from '../components/ui/Overlay'
+import { SearchField } from '../components/ui/SearchField'
+import { alertBox, cn, m3BtnPrimary } from '../lib/ui'
+import { deviceHealth, type DeviceHealth } from '../lib/device-display'
+import { asLicenseFilter, type WorkspaceIntent } from '../lib/workspace-intent'
+import { RequestsTab } from '../requests/RequestsTab'
 import {
   computeExpiryFromTier,
   msToDatetimeLocal,
@@ -22,14 +29,20 @@ import { DeviceEditModal } from './DeviceEditModal'
 import { QuickActivationForm } from './QuickActivationForm'
 import { RegisteredDevicesList } from './RegisteredDevicesList'
 
+type FilterKey = 'all' | DeviceHealth
+
 export function DevicesTab({
   product,
   refreshNonce = 0,
+  pendingCount = 0,
+  intent,
   onLoadingChange,
   onUnauthorized,
 }: {
   product: PlatformProductKey
   refreshNonce?: number
+  pendingCount?: number
+  intent?: WorkspaceIntent | null
   onLoadingChange?: (loading: boolean) => void
   onUnauthorized: () => void
 }) {
@@ -66,6 +79,10 @@ export function DevicesTab({
   const [editError, setEditError] = useState<string | null>(null)
 
   const [detailRow, setDetailRow] = useState<DeviceRow | null>(null)
+  const [createOpen, setCreateOpen] = useState(() => Boolean(intent?.create))
+  const [inboxOpen, setInboxOpen] = useState(() => Boolean(intent?.inbox))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filter, setFilter] = useState<FilterKey>(() => asLicenseFilter(intent?.filter) ?? 'all')
 
   const load = useCallback(async (forProduct: PlatformProductKey) => {
     setLoading(true)
@@ -100,6 +117,12 @@ export function DevicesTab({
     setEditSaving(false)
     setEditError(null)
     setDetailRow(null)
+    setSearchQuery('')
+    if (!intent) {
+      setCreateOpen(false)
+      setInboxOpen(false)
+      setFilter('all')
+    }
     const forProduct = product
     setLoading(true)
     onLoadingChangeRef.current?.(true)
@@ -129,6 +152,14 @@ export function DevicesTab({
     return () => { cancelled = true }
   }, [product, refreshNonce])
 
+  useEffect(() => {
+    if (!intent) return
+    const nextFilter = asLicenseFilter(intent.filter)
+    if (nextFilter) setFilter(nextFilter)
+    if (intent.inbox) setInboxOpen(true)
+    if (intent.create) setCreateOpen(true)
+  }, [intent])
+
   async function addDevice(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -152,6 +183,7 @@ export function DevicesTab({
     setNewMachineId('')
     setNewRollingDays('')
     setNewRollingMinutes('')
+    setCreateOpen(false)
     await load(product)
   }
 
@@ -248,8 +280,80 @@ export function DevicesTab({
     await load(product)
   }
 
+  const counts = {
+    all: devices.length,
+    active: 0,
+    expiring: 0,
+    expired: 0,
+    sync: 0,
+    revoked: 0,
+    unknown: 0,
+  } satisfies Record<FilterKey, number>
+  for (const d of devices) counts[deviceHealth(d)] += 1
+
+  const q = searchQuery.toLowerCase().trim()
+  const filtered = devices.filter((d) => {
+    if (filter !== 'all' && deviceHealth(d) !== filter) return false
+    if (!q) return true
+    return (
+      (d.label ?? '').toLowerCase().includes(q) ||
+      d.machineId.toLowerCase().includes(q) ||
+      (d.storeName ?? '').toLowerCase().includes(q) ||
+      (d.notes ?? '').toLowerCase().includes(q)
+    )
+  })
+
   return (
     <>
+      <MetricCard
+        className="mb-4"
+        layout="row"
+        kicker="Requests"
+        value={pendingCount}
+        caption={
+          pendingCount === 0
+            ? 'No pending activations'
+            : pendingCount === 1
+              ? '1 pending activation'
+              : `${pendingCount} pending activations`
+        }
+        tone={pendingCount > 0 ? 'peach' : 'brand'}
+        icon={Ico.requests}
+        onClick={() => setInboxOpen(true)}
+      />
+
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1 lg:max-w-md">
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search name or machine ID"
+          />
+        </div>
+        <button
+          type="button"
+          className={cn(m3BtnPrimary, 'h-11 w-full shrink-0 px-4 lg:w-auto')}
+          onClick={() => setCreateOpen(true)}
+        >
+          {Ico.plus} Activate device
+        </button>
+      </div>
+
+      <div className="mb-4">
+        <FilterBar
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { key: 'all', label: 'All', count: counts.all },
+            { key: 'active', label: 'Active', count: counts.active },
+            { key: 'expiring', label: 'Expiring', count: counts.expiring },
+            { key: 'expired', label: 'Expired', count: counts.expired },
+            { key: 'sync', label: 'Sync', count: counts.sync },
+            { key: 'revoked', label: 'Revoked', count: counts.revoked },
+          ]}
+        />
+      </div>
+
       {error ? (
         <div className={alertBox} role="alert">
           <span className="shrink-0 text-red-600">{Ico.exclamation}</span>
@@ -257,28 +361,17 @@ export function DevicesTab({
         </div>
       ) : null}
 
-      <QuickActivationForm
+      <RegisteredDevicesList
+        devices={filtered}
         loading={loading}
-        newMachineId={newMachineId}
-        newLabel={newLabel}
-        newTier={newTier}
-        newNotes={newNotes}
-        customAmount={customAmount}
-        customUnit={customUnit}
-        newRollingDays={newRollingDays}
-        newRollingMinutes={newRollingMinutes}
-        onMachineId={setNewMachineId}
-        onLabel={setNewLabel}
-        onTier={setNewTier}
-        onNotes={setNewNotes}
-        onCustomAmount={setCustomAmount}
-        onCustomUnit={setCustomUnit}
-        onRollingDays={setNewRollingDays}
-        onRollingMinutes={setNewRollingMinutes}
-        onSubmit={addDevice}
+        onOpen={setDetailRow}
+        emptyTitle={q || filter !== 'all' ? 'No matches' : 'No devices'}
+        emptyBody={
+          q
+            ? `Nothing matches “${searchQuery}”.`
+            : 'Activate a device to get started.'
+        }
       />
-
-      <RegisteredDevicesList devices={devices} loading={loading} onOpen={setDetailRow} />
 
       {detailRow && !editOpen ? (
         <DeviceDetailSheet
@@ -300,6 +393,39 @@ export function DevicesTab({
           }}
         />
       ) : null}
+
+      <Overlay open={createOpen} title="Activate device" onClose={() => setCreateOpen(false)}>
+        <QuickActivationForm
+          embedded
+          loading={loading}
+          newMachineId={newMachineId}
+          newLabel={newLabel}
+          newTier={newTier}
+          newNotes={newNotes}
+          customAmount={customAmount}
+          customUnit={customUnit}
+          newRollingDays={newRollingDays}
+          newRollingMinutes={newRollingMinutes}
+          onMachineId={setNewMachineId}
+          onLabel={setNewLabel}
+          onTier={setNewTier}
+          onNotes={setNewNotes}
+          onCustomAmount={setCustomAmount}
+          onCustomUnit={setCustomUnit}
+          onRollingDays={setNewRollingDays}
+          onRollingMinutes={setNewRollingMinutes}
+          onSubmit={addDevice}
+        />
+      </Overlay>
+
+      <Overlay open={inboxOpen} title="Requests" onClose={() => setInboxOpen(false)}>
+        <RequestsTab
+          product={product}
+          refreshNonce={0}
+          onLoadingChange={() => {}}
+          onUnauthorized={onUnauthorized}
+        />
+      </Overlay>
 
       {editOpen && editRow ? (
         <DeviceEditModal

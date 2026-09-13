@@ -18,6 +18,7 @@ import type { CustomUnit } from '../types/device'
 export function QuickActivationForm({
   loading,
   hideMachineId,
+  embedded,
   newMachineId,
   newLabel,
   newTier,
@@ -38,6 +39,7 @@ export function QuickActivationForm({
 }: {
   loading: boolean
   hideMachineId?: boolean
+  embedded?: boolean
   newMachineId: string
   newLabel: string
   newTier: string
@@ -56,9 +58,7 @@ export function QuickActivationForm({
   onRollingMinutes: (v: string) => void
   onSubmit: (e: React.FormEvent) => void
 }) {
-  return (
-    <section className={bentoCard}>
-      <h2 className={bentoTitle}>{hideMachineId ? 'Approve request' : 'Quick Activation'}</h2>
+  const form = (
       <form onSubmit={(ev) => void onSubmit(ev)}>
         <div className={iosSection}>
           {hideMachineId ? null : (
@@ -176,6 +176,14 @@ export function QuickActivationForm({
           )}
         </button>
       </form>
+  )
+
+  if (embedded) return form
+
+  return (
+    <section className={bentoCard}>
+      <h2 className={bentoTitle}>{hideMachineId ? 'Approve request' : 'Quick Activation'}</h2>
+      {form}
     </section>
   )
 }

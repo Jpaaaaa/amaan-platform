@@ -22,40 +22,40 @@ export const fieldInline = 'flex w-full items-center gap-2.5'
 export const m3Btn =
   'inline-flex h-12 cursor-pointer items-center justify-center gap-2 rounded-3xl border-0 px-6 font-sans text-sm font-medium transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40'
 
-export const m3BtnPrimary = cn(m3Btn, 'bg-primary text-primary-on')
+export const m3BtnPrimary = cn(m3Btn, 'bg-brand text-white')
 
-export const m3BtnTonal = cn(m3Btn, 'bg-[#e2e8f0] text-label')
+export const m3BtnTonal = cn(m3Btn, 'bg-surface-muted text-label')
 
 export const m3BtnOutline = cn(
   m3Btn,
-  'border border-[#cbd5e1] bg-transparent text-primary',
+  'border border-obsidian-border bg-transparent text-brand',
 )
 
 export const m3BtnText = cn(m3Btn, 'bg-transparent text-primary')
 
 export const spinner =
-  'inline-block h-[18px] w-[18px] animate-spin rounded-full border-2 border-slate-900/10 border-t-accent'
+  'inline-block h-[18px] w-[18px] animate-spin rounded-full border-2 border-obsidian-border border-t-brand'
 
 export const bentoCard =
-  'mb-6 rounded-card border border-obsidian-border bg-obsidian-card p-6 shadow-premium backdrop-blur-[16px]'
+  'mb-6 rounded-card border border-obsidian-border bg-surface p-6 shadow-premium'
 
 export const bentoTitle =
-  'mb-5 text-sm font-extrabold uppercase tracking-widest text-brand-mid'
+  'mb-5 text-xs font-semibold uppercase tracking-wide text-label-2'
 
 export const iosSection =
-  'mb-6 overflow-hidden rounded-[20px] border border-obsidian-border bg-[#f8fafc]'
+  'mb-6 overflow-hidden rounded-card border border-obsidian-border bg-surface-muted'
 
 export const sectionLabel =
-  'px-1 pb-2.5 text-[0.6875rem] font-bold uppercase tracking-widest text-label-3'
+  'px-1 pb-2.5 text-xs font-semibold tracking-wide text-label-2'
 
 export const alertBox =
   'mb-[18px] flex items-start gap-3 rounded-card border border-red-200 bg-red-50 p-3.5 text-sm leading-snug text-red-700 shadow-sm'
 
 export const deviceCard =
-  'mb-3 flex w-full min-w-0 cursor-pointer items-center justify-between gap-3 rounded-2xl border border-obsidian-border bg-white p-4 px-5 text-left transition-all duration-300 hover:scale-[1.01] hover:border-brand/30 hover:bg-[#f8fafc]'
+  'mb-3 flex w-full min-w-0 cursor-pointer items-center justify-between gap-3 rounded-card border border-obsidian-border bg-surface p-4 px-5 text-left shadow-premium transition-colors hover:bg-surface-muted'
 
 export const emptyState =
-  'flex flex-col items-center gap-3 rounded-card border-2 border-dashed border-[#e2e8f0] bg-white/85 px-5 py-12 text-label-3'
+  'flex flex-col items-center gap-3 rounded-card border border-dashed border-obsidian-border bg-surface px-5 py-12 text-label-3 shadow-premium'
 
 export function statusBadge(active: boolean): string {
   return cn(

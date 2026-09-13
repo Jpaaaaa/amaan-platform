@@ -16,6 +16,7 @@ import { LoginScreen } from '../screens/LoginScreen'
 import { MoreScreen } from '../screens/MoreScreen'
 import { ReleasesScreen } from '../screens/ReleasesScreen'
 import { SettingsScreen } from '../screens/SettingsScreen'
+import { ZonesScreen } from '../screens/ZonesScreen'
 import { color } from '../theme'
 import type { MainTabParamList, MoreStackParamList, RootStackParamList } from './types'
 
@@ -44,6 +45,9 @@ function MoreStackNav({
             onBack={() => navigation.goBack()}
           />
         )}
+      </MoreStack.Screen>
+      <MoreStack.Screen name="Zones">
+        {({ navigation }) => <ZonesScreen onBack={() => navigation.goBack()} />}
       </MoreStack.Screen>
       <MoreStack.Screen name="Settings">
         {({ navigation }) => (

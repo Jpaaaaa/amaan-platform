@@ -8,6 +8,7 @@ import type {
   PlatformProductKey,
   PlatformUpdateFilesResponse,
 } from '../types'
+import { isLicenseProduct } from '../types'
 import { parseOfflineGraceMs } from '../utils/offlineGrace'
 import { unitToMs } from '../lib/device-form'
 
@@ -18,6 +19,13 @@ const JSON_HEADERS: Record<string, string> = { 'Content-Type': 'application/json
 
 function productQuery(p: PlatformProductKey): string {
   return `?product=${encodeURIComponent(p)}`
+}
+
+function licenseOnly(
+  product: PlatformProductKey,
+): { ok: false; unauthorized: false; error: string } | null {
+  if (isLicenseProduct(product)) return null
+  return { ok: false, unauthorized: false, error: 'Not a license product.' }
 }
 
 export async function getStoredToken(): Promise<string | null> {
@@ -102,6 +110,8 @@ export async function getDevices(
   | { ok: true; devices: DeviceRow[] }
   | { ok: false; unauthorized: boolean; error: string }
 > {
+  const blocked = licenseOnly(product)
+  if (blocked) return blocked
   const r = await request<{ devices: DeviceRow[] }>(
     `/api/platform/admin/devices${productQuery(product)}`,
   )
@@ -214,6 +224,8 @@ export async function getActivationRequests(
   | { ok: true; requests: ActivationRequestRow[] }
   | { ok: false; unauthorized: boolean; error: string }
 > {
+  const blocked = licenseOnly(product)
+  if (blocked) return blocked
   const statusQ = status ? `&status=${encodeURIComponent(status)}` : ''
   const r = await request<{ requests: ActivationRequestRow[] }>(
     `/api/platform/admin/activation-requests${productQuery(product)}${statusQ}`,
@@ -309,6 +321,8 @@ export async function getReleases(
   | { ok: true; releases: PlatformUpdateFilesResponse }
   | { ok: false; unauthorized: boolean; error: string }
 > {
+  const blocked = licenseOnly(product)
+  if (blocked) return blocked
   const r = await request<PlatformUpdateFilesResponse>(
     `/api/platform/admin/updates/files${productQuery(product)}`,
   )

@@ -1,35 +1,149 @@
-import type { PlatformProductKey } from '@shared/platform-product'
-import type { TabId } from '../types/device'
+import type { ReactNode } from 'react'
+import { useWorkspace } from '../context/WorkspaceContext'
+import type { ShellTabId, TabId } from '../types/device'
+import {
+  SHELL_TAB_IDS,
+  TAB_LABELS,
+  isAmanatProduct,
+  isMoreModuleTab,
+} from '../lib/product-nav'
 import { cn, m3BtnText, spinner } from '../lib/ui'
 import { Ico } from './icons'
 
-const TAB_LABELS: Record<TabId, string> = {
-  devices: 'Devices',
-  requests: 'Requests',
-  releases: 'Releases',
-  amanat: 'Amanat',
-  settings: 'Settings',
+const SHELL_TAB_ICONS: Record<ShellTabId, ReactNode> = {
+  deck: Ico.deck,
+  workspaces: Ico.workspaces,
+  more: Ico.more,
 }
 
-function navItem(active: boolean) {
-  return cn(
-    'flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border-0 bg-transparent text-on-surface-variant transition-[color,transform] active:scale-[0.96] [-webkit-tap-highlight-color:transparent]',
-    active && 'font-semibold text-primary',
+function BottomNavButton({
+  tabId,
+  label,
+  icon,
+  active,
+  badge,
+  onClick,
+}: {
+  tabId: TabId
+  label: string
+  icon: ReactNode
+  active: boolean
+  badge?: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'flex h-full min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-none border-0 bg-transparent text-label-3 transition-colors [-webkit-tap-highlight-color:transparent]',
+        active && 'font-bold text-brand',
+      )}
+      onClick={onClick}
+      aria-current={active ? 'page' : undefined}
+      data-tab={tabId}
+    >
+      <span className="relative flex h-6 items-center justify-center [&_svg]:h-[22px] [&_svg]:w-[22px]" aria-hidden>
+        {icon}
+        {badge != null && badge > 0 ? (
+          <span className="absolute -right-2.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[0.625rem] font-bold leading-none text-white">
+            {badge > 99 ? '99+' : badge}
+          </span>
+        ) : null}
+      </span>
+      <span className={cn('truncate text-[11px]', active ? 'font-bold' : 'font-medium')}>
+        {label}
+      </span>
+    </button>
   )
 }
 
-function navIconWrap(active: boolean) {
-  return cn(
-    'flex h-8 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors [&_svg]:h-[22px] [&_svg]:w-[22px]',
-    active && 'bg-primary-container text-primary-on-container',
+function RailButton({
+  tabId,
+  label,
+  icon,
+  active,
+  badge,
+  onClick,
+}: {
+  tabId: TabId
+  label: string
+  icon: ReactNode
+  active: boolean
+  badge?: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
+      data-tab={tabId}
+      className={cn(
+        'relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-2xl border-0 bg-transparent text-label-3 transition-colors hover:bg-surface-muted hover:text-label',
+        active && 'bg-brand-muted text-brand',
+      )}
+      onClick={onClick}
+    >
+      <span className="[&_svg]:h-5 [&_svg]:w-5" aria-hidden>
+        {icon}
+      </span>
+      {badge != null && badge > 0 ? (
+        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[0.625rem] font-bold leading-none text-white">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      ) : null}
+    </button>
   )
+}
+
+function RefreshButtons({
+  showDevicesRefresh,
+  showAmanatRefresh,
+  onRefreshDevices,
+  devicesLoading,
+  onRefreshAmanat,
+  amanatLoading,
+}: {
+  showDevicesRefresh: boolean
+  showAmanatRefresh: boolean
+  onRefreshDevices?: () => void
+  devicesLoading?: boolean
+  onRefreshAmanat?: () => void
+  amanatLoading?: boolean
+}) {
+  if (showDevicesRefresh) {
+    return (
+      <button
+        className={m3BtnText}
+        type="button"
+        onClick={onRefreshDevices}
+        disabled={devicesLoading}
+        aria-label="Refresh devices"
+      >
+        <div className={devicesLoading ? spinner : ''}>{Ico.refresh}</div>
+      </button>
+    )
+  }
+  if (showAmanatRefresh) {
+    return (
+      <button
+        className={m3BtnText}
+        type="button"
+        onClick={onRefreshAmanat}
+        disabled={amanatLoading}
+        aria-label="Refresh Amanat data"
+      >
+        <div className={amanatLoading ? spinner : ''}>{Ico.refresh}</div>
+      </button>
+    )
+  }
+  return null
 }
 
 export function AppShell({
   tab,
-  product,
   onTabChange,
-  onProductChange,
   onRefreshDevices,
   devicesLoading,
   onRefreshAmanat,
@@ -38,9 +152,7 @@ export function AppShell({
   children,
 }: {
   tab: TabId
-  product: PlatformProductKey
   onTabChange: (tab: TabId) => void
-  onProductChange: (product: PlatformProductKey) => void
   onRefreshDevices?: () => void
   devicesLoading?: boolean
   onRefreshAmanat?: () => void
@@ -48,142 +160,105 @@ export function AppShell({
   pendingRequestsCount?: number
   children: React.ReactNode
 }) {
+  const { product } = useWorkspace()
+  const amanatProduct = isAmanatProduct(product)
+  const showDevicesRefresh =
+    Boolean(onRefreshDevices) && (tab === 'workspaces' || tab === 'devices' || tab === 'deck')
+  const showAmanatRefresh =
+    Boolean(onRefreshAmanat) &&
+    (tab === 'workspaces' ||
+      tab === 'deck' ||
+      (amanatProduct && (tab === 'subscriptions' || tab === 'zones')))
+
+  const refresh = (
+    <RefreshButtons
+      showDevicesRefresh={showDevicesRefresh}
+      showAmanatRefresh={showAmanatRefresh && !showDevicesRefresh}
+      onRefreshDevices={onRefreshDevices}
+      devicesLoading={devicesLoading}
+      onRefreshAmanat={onRefreshAmanat}
+      amanatLoading={amanatLoading}
+    />
+  )
+
+  const navItems = SHELL_TAB_IDS.map((tabId) => ({
+    tabId,
+    label: TAB_LABELS[tabId],
+    icon: SHELL_TAB_ICONS[tabId],
+    active: tab === tabId || (tabId === 'more' && isMoreModuleTab(tab)),
+    badge: tabId === 'workspaces' ? pendingRequestsCount : undefined,
+    onClick: () => onTabChange(tabId),
+  }))
+
   return (
-    <div className="min-h-dvh overflow-x-hidden">
-      <header className="sticky top-4 z-[101] mx-auto w-[min(calc(100%-32px),600px)] rounded-[28px] border border-obsidian-border bg-obsidian-card shadow-premium backdrop-blur-[16px]">
-        <div className="grid min-h-16 grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2 sm:px-5">
-          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3.5">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-white to-[#e3f2ff] p-1 shadow-[0_4px_15px_rgba(0,153,255,0.3)] sm:h-11 sm:w-11">
+    <div className="min-h-dvh overflow-x-hidden bg-obsidian-bg">
+      <header className="sticky top-0 z-[101] border-b border-obsidian-border bg-surface lg:hidden">
+        <div className="mx-auto grid min-h-14 w-full max-w-[600px] grid-cols-[1fr_auto_1fr] items-center gap-2 px-4 py-2">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-brand-muted p-1">
               <img
                 src="/amanlogo.png"
                 alt="Amaan Logo"
-                width={40}
-                height={40}
+                width={36}
+                height={36}
                 className="h-full w-full object-contain"
               />
             </div>
-            {tab !== 'amanat' ? (
-              <div className="flex shrink-0 gap-0.5 rounded-xl border border-slate-900/[0.08] bg-slate-900/[0.06] p-0.5">
-                {(['sufra_lite', 'bazar_one'] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    className={cn(
-                      'h-7 cursor-pointer rounded-[9px] border-0 px-2 font-sans text-[0.625rem] font-extrabold uppercase tracking-wider transition-colors sm:px-2.5',
-                      product === p
-                        ? 'bg-white text-brand-deep shadow-sm'
-                        : 'bg-transparent text-slate-900/45 hover:bg-slate-900/[0.04] hover:text-label',
-                    )}
-                    onClick={() => onProductChange(p)}
-                  >
-                    {p.split('_')[0].toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            ) : null}
           </div>
 
-          <h1 className="truncate px-1 text-center text-base font-extrabold leading-tight tracking-tight text-label sm:text-lg">
+          <h1 className="truncate px-1 text-center text-base font-bold leading-tight tracking-tight text-label sm:text-lg">
             {TAB_LABELS[tab]}
           </h1>
 
-          <div className="flex min-w-[40px] items-center justify-end sm:min-w-[48px]">
-            {tab === 'devices' && onRefreshDevices ? (
-              <button
-                className={m3BtnText}
-                type="button"
-                onClick={onRefreshDevices}
-                disabled={devicesLoading}
-                aria-label="Refresh devices"
-              >
-                <div className={devicesLoading ? spinner : ''}>{Ico.refresh}</div>
-              </button>
-            ) : null}
-            {tab === 'amanat' && onRefreshAmanat ? (
-              <button
-                className={m3BtnText}
-                type="button"
-                onClick={onRefreshAmanat}
-                disabled={amanatLoading}
-                aria-label="Refresh subscriptions"
-              >
-                <div className={amanatLoading ? spinner : ''}>{Ico.refresh}</div>
-              </button>
-            ) : null}
+          <div className="flex min-w-[40px] items-center justify-end gap-2 sm:min-w-[48px]">
+            {refresh}
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-[600px] px-4 pb-[calc(88px+env(safe-area-inset-bottom))] pt-8">
-        {children}
-      </main>
+      <div className="lg:flex lg:min-h-dvh lg:p-3">
+        <div className="mx-auto w-full max-w-[600px] lg:mx-0 lg:flex lg:max-w-none lg:min-h-[calc(100dvh-24px)] lg:overflow-hidden lg:rounded-island lg:border lg:border-obsidian-border lg:bg-surface lg:shadow-island">
+          <aside className="hidden w-[72px] shrink-0 flex-col items-center border-r border-obsidian-border py-4 lg:flex">
+            <div className="mb-6 flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-muted p-1.5">
+              <img
+                src="/amanlogo.png"
+                alt="Amaan Logo"
+                width={32}
+                height={32}
+                className="h-full w-full object-contain"
+              />
+            </div>
+            <nav className="flex flex-col items-center gap-1.5" aria-label="Primary">
+              {navItems.map((item) => (
+                <RailButton key={item.tabId} {...item} />
+              ))}
+            </nav>
+          </aside>
+
+          <div className="flex min-w-0 flex-1 flex-col">
+            <header className="hidden items-center gap-4 px-6 py-4 lg:flex">
+              <h1 className="min-w-0 flex-1 truncate text-xl font-bold tracking-tight text-label">
+                {TAB_LABELS[tab]}
+              </h1>
+              {refresh}
+            </header>
+
+            <main className="w-full px-4 pb-[calc(72px+env(safe-area-inset-bottom))] pt-6 lg:px-6 lg:pb-8 lg:pt-2">
+              {children}
+            </main>
+          </div>
+        </div>
+      </div>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-[100] border-t border-slate-900/[0.08] bg-white/80 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_32px_rgba(5,40,90,0.08)] backdrop-blur-[16px] backdrop-saturate-[160%]"
+        className="fixed inset-x-0 bottom-0 z-[100] border-t border-obsidian-border bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
         role="navigation"
         aria-label="Primary"
       >
-        <div className="mx-auto flex h-[72px] max-w-[600px] items-stretch justify-around gap-0.5 px-1 pt-1.5 sm:gap-1 sm:px-2">
-          <button
-            type="button"
-            className={navItem(tab === 'devices')}
-            onClick={() => onTabChange('devices')}
-            aria-current={tab === 'devices' ? 'page' : undefined}
-          >
-            <span className={navIconWrap(tab === 'devices')} aria-hidden>
-              {Ico.devices}
-            </span>
-            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Devices</span>
-          </button>
-          <button
-            type="button"
-            className={navItem(tab === 'requests')}
-            onClick={() => onTabChange('requests')}
-            aria-current={tab === 'requests' ? 'page' : undefined}
-          >
-            <span className={cn(navIconWrap(tab === 'requests'), 'relative')} aria-hidden>
-              {Ico.requests}
-              {pendingRequestsCount != null && pendingRequestsCount > 0 ? (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[0.625rem] font-bold leading-none text-white">
-                  {pendingRequestsCount > 99 ? '99+' : pendingRequestsCount}
-                </span>
-              ) : null}
-            </span>
-            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Requests</span>
-          </button>
-          <button
-            type="button"
-            className={navItem(tab === 'releases')}
-            onClick={() => onTabChange('releases')}
-            aria-current={tab === 'releases' ? 'page' : undefined}
-          >
-            <span className={navIconWrap(tab === 'releases')} aria-hidden>
-              {Ico.releases}
-            </span>
-            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Releases</span>
-          </button>
-          <button
-            type="button"
-            className={navItem(tab === 'amanat')}
-            onClick={() => onTabChange('amanat')}
-            aria-current={tab === 'amanat' ? 'page' : undefined}
-          >
-            <span className={navIconWrap(tab === 'amanat')} aria-hidden>
-              {Ico.amanat}
-            </span>
-            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Amanat</span>
-          </button>
-          <button
-            type="button"
-            className={navItem(tab === 'settings')}
-            onClick={() => onTabChange('settings')}
-            aria-current={tab === 'settings' ? 'page' : undefined}
-          >
-            <span className={navIconWrap(tab === 'settings')} aria-hidden>
-              {Ico.settings}
-            </span>
-            <span className="truncate text-[0.625rem] font-semibold tracking-wide sm:text-[0.6875rem]">Settings</span>
-          </button>
+        <div className="mx-auto flex h-[56px] max-w-[600px] items-stretch justify-around px-1 pt-1.5">
+          {navItems.map((item) => (
+            <BottomNavButton key={item.tabId} {...item} />
+          ))}
         </div>
       </nav>
     </div>

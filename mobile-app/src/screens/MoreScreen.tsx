@@ -5,6 +5,7 @@ import { AppHeader } from '../components/ui/AppHeader'
 import { tabBarHeight } from '../constants/layout'
 import { PRODUCT_META } from '../constants/products'
 import { useWorkspace } from '../context/WorkspaceContext'
+import { isAmanatProduct } from '../types'
 import { color, radius, shadow } from '../theme'
 
 type Module = {
@@ -12,22 +13,33 @@ type Module = {
   title: string
   subtitle: string
   icon: string
-  route?: 'Releases' | 'Settings'
+  route?: 'Releases' | 'Zones' | 'Settings'
   soon?: boolean
 }
 
-const MODULES: { heading: string; items: Module[] }[] = [
+function modulesForProduct(amanat: boolean): { heading: string; items: Module[] }[] {
+  return [
   {
     heading: 'Operations',
-    items: [
-      {
-        key: 'releases',
-        title: 'Releases',
-        subtitle: 'Update packages',
-        icon: 'system-update',
-        route: 'Releases',
-      },
-    ],
+    items: amanat
+      ? [
+          {
+            key: 'zones',
+            title: 'Zones',
+            subtitle: 'Neighborhoods · edit on web',
+            icon: 'map',
+            route: 'Zones',
+          },
+        ]
+      : [
+          {
+            key: 'releases',
+            title: 'Releases',
+            subtitle: 'Update packages',
+            icon: 'system-update',
+            route: 'Releases',
+          },
+        ],
   },
   {
     heading: 'Coming later',
@@ -50,15 +62,19 @@ const MODULES: { heading: string; items: Module[] }[] = [
     ],
   },
 ]
+}
+
+type MoreRoute = 'Releases' | 'Zones' | 'Settings'
 
 type Props = {
-  onOpen: (route: 'Releases' | 'Settings') => void
+  onOpen: (route: MoreRoute) => void
 }
 
 export function MoreScreen({ onOpen }: Props) {
   const insets = useSafeAreaInsets()
   const { product } = useWorkspace()
   const workspace = PRODUCT_META[product]
+  const groups = modulesForProduct(isAmanatProduct(product))
 
   return (
     <View style={styles.root}>
@@ -79,7 +95,7 @@ export function MoreScreen({ onOpen }: Props) {
         </View>
       </View>
 
-      {MODULES.map((group) => (
+      {groups.map((group) => (
         <View key={group.heading}>
           <Text style={styles.heading}>{group.heading}</Text>
           <View style={styles.group}>

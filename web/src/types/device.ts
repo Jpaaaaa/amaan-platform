@@ -1,6 +1,15 @@
 export type SessionState = 'loading' | 'anon' | 'ok'
 
-export type TabId = 'devices' | 'releases' | 'amanat' | 'settings' | 'requests'
+export type ShellTabId = 'deck' | 'workspaces' | 'more'
+
+export type TabId =
+  | ShellTabId
+  | 'devices'
+  | 'releases'
+  | 'settings'
+  | 'requests'
+  | 'subscriptions'
+  | 'zones'
 
 export type CustomUnit = 'seconds' | 'minutes' | 'hours' | 'days'
 

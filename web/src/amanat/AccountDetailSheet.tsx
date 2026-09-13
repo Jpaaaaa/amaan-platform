@@ -5,14 +5,9 @@ import {
   cn,
   iosSection,
   m3BtnTonal,
-  sheetBackdrop,
-  sheetContent,
-  sheetNav,
-  sheetNavBtn,
-  sheetNavTitle,
-  sheetPanel,
   spinner,
 } from '../lib/ui'
+import { Overlay } from '../components/ui/Overlay'
 import { ResetPasswordModal } from './ResetPasswordModal'
 import { formatSubscriptionDate } from './subscription-status'
 
@@ -59,35 +54,10 @@ export function AccountDetailSheet({
 
   return (
     <>
-      <div
-        role="presentation"
-        className={sheetBackdrop}
-        onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose()
-        }}
-      >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="account-sheet-title"
-          className={sheetPanel}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className={sheetNav}>
-            <button className={sheetNavBtn} type="button" onClick={onClose}>
-              Close
-            </button>
-            <span id="account-sheet-title" className={sheetNavTitle}>
-              Account
-            </span>
-            <span className="min-w-16" aria-hidden />
-          </div>
-
-          <div className={sheetContent}>
-            <p className="px-4 pb-1 text-lg font-bold text-label">{accountName}</p>
+      <Overlay open title="Account" onClose={onClose}>
+            <p className="pb-1 text-lg font-bold text-label">{accountName}</p>
             {account && (
-              <p className="px-4 pb-4 text-xs capitalize text-on-surface-variant">
+              <p className="pb-4 text-xs capitalize text-on-surface-variant">
                 {account.accountType} · {account.tier.toLowerCase()}
                 {account.isLocked ? ' · locked' : ''}
               </p>
@@ -100,12 +70,12 @@ export function AccountDetailSheet({
             )}
 
             {error && (
-              <div className={cn(alertBox, 'mx-4 mb-4 rounded-2xl')}>{error}</div>
+              <div className={cn(alertBox, 'mb-4 rounded-2xl')}>{error}</div>
             )}
 
             {account && !loading && (
               <>
-                <div className={cn(iosSection, 'mx-4 mb-4 rounded-[20px]')}>
+                <div className={cn(iosSection, 'mb-4')}>
                   <div className="field-row border-t-0 px-4 py-3">
                     <p className="text-[0.625rem] font-bold uppercase tracking-wider text-label-3">
                       Subscription period
@@ -127,14 +97,14 @@ export function AccountDetailSheet({
                   )}
                 </div>
 
-                <p className="mb-2 px-4 text-[0.6875rem] font-bold uppercase tracking-widest text-label-3">
+                <p className="mb-2 text-[0.6875rem] font-bold uppercase tracking-widest text-label-3">
                   {account.accountType === 'individual' ? 'User' : 'Users & agents'}
                 </p>
 
                 {account.accountUsers.length === 0 ? (
-                  <p className="px-4 pb-6 text-sm text-on-surface-variant">No users found.</p>
+                  <p className="pb-6 text-sm text-on-surface-variant">No users found.</p>
                 ) : (
-                  <div className="space-y-2 px-4 pb-6">
+                  <div className="space-y-2 pb-2">
                     {account.accountUsers.map((user) => (
                       <div
                         key={user.id}
@@ -170,9 +140,7 @@ export function AccountDetailSheet({
                 )}
               </>
             )}
-          </div>
-        </div>
-      </div>
+      </Overlay>
 
       {resetUser && (
         <ResetPasswordModal

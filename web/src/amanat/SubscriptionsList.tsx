@@ -9,10 +9,12 @@ import {
   type SubscriptionListItem,
 } from '../api/amanat'
 import { Ico } from '../components/icons'
+import { AccentTile, type MetricTone } from '../components/ui/DeckPrimitives'
+import { DataTable, type DataTableColumn } from '../components/ui/DataTable'
+import { FilterBar } from '../components/ui/FilterBar'
+import { SearchField } from '../components/ui/SearchField'
 import {
   alertBox,
-  bentoCard,
-  bentoTitle,
   cn,
   emptyState,
   m3BtnOutline,
@@ -22,21 +24,23 @@ import {
 } from '../lib/ui'
 import { ApproveModal } from './ApproveModal'
 import { AccountDetailSheet } from './AccountDetailSheet'
+import { asAmanatFilter, type WorkspaceIntent } from '../lib/workspace-intent'
 import {
   filterSubscriptions,
   formatSubscriptionDate,
   subscriptionCanRenew,
   subscriptionIsActiveApproved,
+  subscriptionIsExpired,
   subscriptionStatusBadgeClass,
   subscriptionStatusLabel,
   type SubscriptionFilter,
 } from './subscription-status'
 
-const FILTER_TABS: { id: SubscriptionFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'pending', label: 'Pending' },
-  { id: 'expiring', label: 'Expiring' },
-  { id: 'expired', label: 'Expired' },
+const FILTER_TABS: { key: SubscriptionFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'expiring', label: 'Expiring' },
+  { key: 'expired', label: 'Expired' },
 ]
 
 const actionBtn = cn(m3BtnOutline, 'h-9 min-h-0 px-3 text-xs font-bold')
@@ -45,6 +49,14 @@ const actionBtnDanger = cn(
   actionBtn,
   'border-red-300 text-red-600 hover:border-red-400 hover:bg-red-50',
 )
+
+function subscriptionTone(item: SubscriptionListItem): MetricTone {
+  if (subscriptionIsExpired(item)) return 'danger'
+  if (item.paymentStatus === 'PENDING') return 'brand'
+  if (item.expiringSoon) return 'warning'
+  if (item.paymentStatus === 'APPROVED') return 'success'
+  return 'neutral'
+}
 
 function SubscriptionCard({
   item,
@@ -66,14 +78,19 @@ function SubscriptionCard({
   onDelete: () => void
 }) {
   return (
-    <article className="mb-3 rounded-2xl border border-obsidian-border bg-white p-4 px-5">
+    <article className="mb-3 rounded-card border border-obsidian-border bg-surface p-4 px-5 shadow-premium">
       <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-base font-bold text-label">{item.accountName}</h3>
-          <p className="text-xs capitalize text-on-surface-variant">
-            {item.accountType}
-            {item.isLocked ? ' · locked' : ''}
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <AccentTile tone={subscriptionTone(item)}>
+            {item.accountName.slice(0, 1).toUpperCase()}
+          </AccentTile>
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-bold text-label">{item.accountName}</h3>
+            <p className="text-xs capitalize text-on-surface-variant">
+              {item.accountType}
+              {item.isLocked ? ' · locked' : ''}
+            </p>
+          </div>
         </div>
         <span className={subscriptionStatusBadgeClass(item)}>
           {subscriptionStatusLabel(item)}
@@ -156,11 +173,13 @@ function SubscriptionCard({
 
 export function SubscriptionsList({
   refreshNonce = 0,
+  intent,
   onLoadingChange,
   onUnauthorized,
   onSignOut,
 }: {
   refreshNonce?: number
+  intent?: WorkspaceIntent | null
   onLoadingChange?: (loading: boolean) => void
   onUnauthorized: () => void
   onSignOut: () => void
@@ -168,7 +187,8 @@ export function SubscriptionsList({
   const [items, setItems] = useState<SubscriptionListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<SubscriptionFilter>('all')
+  const [filter, setFilter] = useState<SubscriptionFilter>(() => asAmanatFilter(intent?.filter) ?? 'all')
+  const [searchQuery, setSearchQuery] = useState('')
   const [actionId, setActionId] = useState<string | null>(null)
   const [approving, setApproving] = useState<SubscriptionListItem | null>(null)
   const [viewing, setViewing] = useState<SubscriptionListItem | null>(null)
@@ -206,7 +226,80 @@ export function SubscriptionsList({
     void load()
   }, [load, refreshNonce])
 
-  const filtered = useMemo(() => filterSubscriptions(items, filter), [items, filter])
+  useEffect(() => {
+    if (!intent) return
+    const next = asAmanatFilter(intent.filter)
+    if (next) setFilter(next)
+  }, [intent])
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    return filterSubscriptions(items, filter).filter((item) => {
+      if (!q) return true
+      return (
+        item.accountName.toLowerCase().includes(q) ||
+        item.accountType.toLowerCase().includes(q) ||
+        item.tier.toLowerCase().includes(q)
+      )
+    })
+  }, [items, filter, searchQuery])
+
+  const filterCounts = useMemo(() => {
+    return {
+      all: items.length,
+      pending: filterSubscriptions(items, 'pending').length,
+      expiring: filterSubscriptions(items, 'expiring').length,
+      expired: filterSubscriptions(items, 'expired').length,
+    } satisfies Record<SubscriptionFilter, number>
+  }, [items])
+
+  const columns: DataTableColumn<SubscriptionListItem>[] = [
+    {
+      key: 'account',
+      header: 'Account',
+      render: (item) => (
+        <span className="flex min-w-0 items-center gap-2.5">
+          <AccentTile size="sm" tone={subscriptionTone(item)}>
+            {item.accountName.slice(0, 1).toUpperCase()}
+          </AccentTile>
+          <span className="truncate font-semibold">{item.accountName}</span>
+        </span>
+      ),
+    },
+    {
+      key: 'type',
+      header: 'Type',
+      render: (item) => <span className="capitalize">{item.accountType}</span>,
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (item) => (
+        <span className={subscriptionStatusBadgeClass(item)}>{subscriptionStatusLabel(item)}</span>
+      ),
+    },
+    {
+      key: 'tier',
+      header: 'Tier',
+      render: (item) => <span className="capitalize">{item.tier.toLowerCase()}</span>,
+    },
+    {
+      key: 'agents',
+      header: 'Agents',
+      render: (item) =>
+        item.accountType === 'individual' ? '—' : `${item.agentsCount} / ${item.maxAgents}`,
+    },
+    {
+      key: 'starts',
+      header: 'Starts',
+      render: (item) => formatSubscriptionDate(item.startsAt),
+    },
+    {
+      key: 'ends',
+      header: 'Ends',
+      render: (item) => formatSubscriptionDate(item.endsAt),
+    },
+  ]
 
   const runAction = useCallback(
     async (id: string, fn: () => ReturnType<typeof approveAmanatSubscription>): Promise<boolean> => {
@@ -258,31 +351,28 @@ export function SubscriptionsList({
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <p className="text-sm text-on-surface-variant">
-          Account subscriptions across the Amanat platform
-        </p>
+      <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 flex-1 lg:max-w-md">
+          <SearchField
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search account"
+          />
+        </div>
         <button type="button" className={cn(m3BtnText, 'h-10 shrink-0 px-3')} onClick={onSignOut}>
           Sign out
         </button>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        {FILTER_TABS.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={cn(
-              'rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition-colors',
-              filter === tab.id
-                ? 'bg-primary text-primary-on'
-                : 'bg-slate-900/[0.06] text-label-3 hover:text-label',
-            )}
-            onClick={() => setFilter(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="mb-4">
+        <FilterBar
+          value={filter}
+          onChange={setFilter}
+          options={FILTER_TABS.map((tab) => ({
+            ...tab,
+            count: filterCounts[tab.key],
+          }))}
+        />
       </div>
 
       {error && (
@@ -292,14 +382,7 @@ export function SubscriptionsList({
         </div>
       )}
 
-      <section className={bentoCard}>
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className={cn(bentoTitle, 'mb-0')}>Subscriptions</h2>
-          <span className="text-xs font-bold text-on-surface-variant">
-            {filtered.length} shown
-          </span>
-        </div>
-
+      <div className="lg:hidden">
         {loading ? (
           <div className={emptyState}>
             <span className={cn(spinner, 'h-8 w-8')} />
@@ -329,16 +412,19 @@ export function SubscriptionsList({
             </p>
           </div>
         )}
-      </section>
+      </div>
 
-      <button
-        type="button"
-        className={cn(m3BtnOutline, 'mb-6 min-h-12 w-full')}
-        onClick={() => void load()}
-        disabled={loading}
-      >
-        Refresh list
-      </button>
+      <div className="hidden lg:block">
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          rowKey={(item) => item.id}
+          onRowClick={(item) => setViewing(item)}
+          loading={loading}
+          emptyTitle="No subscriptions"
+          emptyBody="Nothing matches this filter yet."
+        />
+      </div>
 
       {viewing && (
         <AccountDetailSheet

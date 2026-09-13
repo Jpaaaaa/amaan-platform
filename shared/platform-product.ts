@@ -1,17 +1,34 @@
 export const PLATFORM_PRODUCT_BAZAR = 'bazar_one' as const
 export const PLATFORM_PRODUCT_SUFRA = 'sufra_lite' as const
+export const PLATFORM_PRODUCT_AMANAT = 'amanat' as const
 
-export const PLATFORM_PRODUCT_KEYS = [PLATFORM_PRODUCT_BAZAR, PLATFORM_PRODUCT_SUFRA] as const
+/** Device licensing products (platform API). */
+export const PLATFORM_LICENSE_PRODUCT_KEYS = [
+  PLATFORM_PRODUCT_BAZAR,
+  PLATFORM_PRODUCT_SUFRA,
+] as const
+
+export type PlatformLicenseProductKey = (typeof PLATFORM_LICENSE_PRODUCT_KEYS)[number]
+
+export const PLATFORM_PRODUCT_KEYS = [
+  ...PLATFORM_LICENSE_PRODUCT_KEYS,
+  PLATFORM_PRODUCT_AMANAT,
+] as const
 
 export type PlatformProductKey = (typeof PLATFORM_PRODUCT_KEYS)[number]
 
 const KEY_SET = new Set<string>(PLATFORM_PRODUCT_KEYS)
+const LICENSE_KEY_SET = new Set<string>(PLATFORM_LICENSE_PRODUCT_KEYS)
 
 /** Ping + admin default when omitted (legacy Bazar-only DB rows). */
 export const PLATFORM_PRODUCT_DEFAULT: PlatformProductKey = PLATFORM_PRODUCT_BAZAR
 
 export function isPlatformProductKey(s: string): s is PlatformProductKey {
   return KEY_SET.has(s)
+}
+
+export function isLicensePlatformProductKey(s: string): s is PlatformLicenseProductKey {
+  return LICENSE_KEY_SET.has(s)
 }
 
 export function parsePlatformProductKey(raw: string | undefined | null): PlatformProductKey {

@@ -1,5 +1,5 @@
 import type { NavigatorScreenParams } from '@react-navigation/native'
-import type { DeviceHealth } from '../utils/deviceDisplay'
+import type { WorkspaceIntent } from '../lib/workspace-intent'
 
 export type RootStackParamList = {
   Login: undefined
@@ -8,13 +8,14 @@ export type RootStackParamList = {
 
 export type MainTabParamList = {
   Deck: undefined
-  Workspaces: { filter?: DeviceHealth; create?: boolean; inbox?: boolean } | undefined
+  Workspaces: WorkspaceIntent | undefined
   More: NavigatorScreenParams<MoreStackParamList> | undefined
 }
 
 export type MoreStackParamList = {
   MoreHome: undefined
   Releases: undefined
+  Zones: undefined
   Settings: undefined
 }
 

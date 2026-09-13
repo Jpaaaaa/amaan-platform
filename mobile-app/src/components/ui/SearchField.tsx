@@ -34,6 +34,7 @@ export function SearchField({ value, onChangeText, placeholder = 'Search' }: Pro
 
 const styles = StyleSheet.create({
   wrap: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,

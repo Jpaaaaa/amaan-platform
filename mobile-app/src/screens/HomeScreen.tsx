@@ -13,13 +13,20 @@ import { useNavigation } from '@react-navigation/native'
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
+import { fetchAmanatSubscriptions, type SubscriptionListItem } from '../api/amanat'
 import { getActivationRequests, getDevices } from '../api/client'
+import { AmanatLoginForm } from '../components/AmanatLoginForm'
 import { tabBarHeight } from '../constants/layout'
 import { useWorkspace } from '../context/WorkspaceContext'
 import { ErrorBanner } from '../components/ui/ErrorBanner'
 import { StatusChip } from '../components/ui/StatusChip'
+import { clearAmanatToken, isAmanatAuthenticated } from '../lib/amanat-auth'
+import {
+  filterSubscriptions,
+  subscriptionStatusLabel,
+} from '../lib/subscription-status'
 import type { MainTabParamList } from '../navigation/types'
-import type { ActivationRequestRow, DeviceRow } from '../types'
+import { isAmanatProduct, type ActivationRequestRow, type DeviceRow } from '../types'
 import { deviceHealth } from '../utils/deviceDisplay'
 import { formatRelativeAge } from '../utils/requestDisplay'
 import { color, radius, shadow } from '../theme'
@@ -71,8 +78,40 @@ export function HomeScreen({ onUnauthorized }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [devices, setDevices] = useState<DeviceRow[]>([])
   const [pending, setPending] = useState<ActivationRequestRow[]>([])
+  const [subscriptions, setSubscriptions] = useState<SubscriptionListItem[]>([])
+  const [amanatAuthed, setAmanatAuthed] = useState(false)
+
+  const amanat = isAmanatProduct(product)
 
   const load = useCallback(async () => {
+    if (isAmanatProduct(product)) {
+      setDevices([])
+      setPending([])
+      setError(null)
+      const signedIn = await isAmanatAuthenticated()
+      setAmanatAuthed(signedIn)
+      if (!signedIn) {
+        setSubscriptions([])
+        setLoading(false)
+        return
+      }
+      const result = await fetchAmanatSubscriptions()
+      if (!result.ok) {
+        if (result.unauthorized) {
+          await clearAmanatToken()
+          setAmanatAuthed(false)
+        }
+        setSubscriptions([])
+        setError(result.error)
+        setLoading(false)
+        return
+      }
+      setSubscriptions(result.data)
+      setLoading(false)
+      return
+    }
+    setSubscriptions([])
+    setAmanatAuthed(false)
     setError(null)
     const [d, r] = await Promise.all([
       getDevices(product),
@@ -109,54 +148,98 @@ export function HomeScreen({ onUnauthorized }: Props) {
   const expiring = devices.filter((d) => deviceHealth(d) === 'expiring').length
   const expired = devices.filter((d) => deviceHealth(d) === 'expired').length
   const sync = devices.filter((d) => deviceHealth(d) === 'sync').length
-  const queueCount = pending.length + expiring + expired + sync
+  const pendingSubs = filterSubscriptions(subscriptions, 'pending')
+  const expiringSubs = filterSubscriptions(subscriptions, 'expiring')
+  const expiredSubs = filterSubscriptions(subscriptions, 'expired')
+  const queueCount = amanat
+    ? pendingSubs.length + expiringSubs.length + expiredSubs.length
+    : pending.length + expiring + expired + sync
 
   const { hero, small } = useMemo(() => {
-    const metrics: Metric[] = [
-      {
-        key: 'pending',
-        kicker: 'Requests',
-        count: pending.length,
-        caption: 'Pending activations',
-        cta: 'Review',
-        tone: 'brand',
-        onPress: () => navigation.navigate('Workspaces', { inbox: true }),
-      },
-      {
-        key: 'expired',
-        kicker: 'Expired',
-        count: expired,
-        caption: 'Licenses ended',
-        cta: 'Open',
-        tone: 'danger',
-        onPress: () => navigation.navigate('Workspaces', { filter: 'expired' }),
-      },
-      {
-        key: 'expiring',
-        kicker: 'Expire',
-        count: expiring,
-        caption: 'This week',
-        cta: 'Open',
-        tone: 'warning',
-        onPress: () => navigation.navigate('Workspaces', { filter: 'expiring' }),
-      },
-      {
-        key: 'sync',
-        kicker: 'Sync',
-        count: sync,
-        caption: 'Needs a sync',
-        cta: 'Open',
-        tone: 'warning',
-        onPress: () => navigation.navigate('Workspaces', { filter: 'sync' }),
-      },
-    ]
+    const metrics: Metric[] = amanat
+      ? [
+          {
+            key: 'pending',
+            kicker: 'Pending',
+            count: pendingSubs.length,
+            caption: 'Awaiting approval',
+            cta: 'Review',
+            tone: 'brand',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'pending' }),
+          },
+          {
+            key: 'expired',
+            kicker: 'Expired',
+            count: expiredSubs.length,
+            caption: 'Subscriptions ended',
+            cta: 'Open',
+            tone: 'danger',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'expired' }),
+          },
+          {
+            key: 'expiring',
+            kicker: 'Expire',
+            count: expiringSubs.length,
+            caption: 'Ending soon',
+            cta: 'Open',
+            tone: 'warning',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'expiring' }),
+          },
+          {
+            key: 'all',
+            kicker: 'Accounts',
+            count: subscriptions.length,
+            caption: 'All subscriptions',
+            cta: 'Open',
+            tone: 'brand',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'all' }),
+          },
+        ]
+      : [
+          {
+            key: 'pending',
+            kicker: 'Requests',
+            count: pending.length,
+            caption: 'Pending activations',
+            cta: 'Review',
+            tone: 'brand',
+            onPress: () => navigation.navigate('Workspaces', { inbox: true }),
+          },
+          {
+            key: 'expired',
+            kicker: 'Expired',
+            count: expired,
+            caption: 'Licenses ended',
+            cta: 'Open',
+            tone: 'danger',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'expired' }),
+          },
+          {
+            key: 'expiring',
+            kicker: 'Expire',
+            count: expiring,
+            caption: 'This week',
+            cta: 'Open',
+            tone: 'warning',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'expiring' }),
+          },
+          {
+            key: 'sync',
+            kicker: 'Sync',
+            count: sync,
+            caption: 'Needs a sync',
+            cta: 'Open',
+            tone: 'warning',
+            onPress: () => navigation.navigate('Workspaces', { filter: 'sync' }),
+          },
+        ]
     const hot = metrics.find((m) => m.count > 0)
     const heroMetric: Metric =
       hot ??
       ({
         key: 'devices',
         kicker: 'Workspaces',
-        count: devices.length,
+        count: amanat ? subscriptions.length : devices.length,
         caption: 'All clear in this workspace',
         cta: 'Open list',
         tone: 'success',
@@ -164,7 +247,19 @@ export function HomeScreen({ onUnauthorized }: Props) {
       } satisfies Metric)
     const rest = metrics.filter((m) => m.key !== heroMetric.key).slice(0, 2)
     return { hero: heroMetric, small: rest }
-  }, [pending.length, expired, expiring, sync, devices.length, navigation])
+  }, [
+    amanat,
+    pending.length,
+    expired,
+    expiring,
+    sync,
+    devices.length,
+    pendingSubs.length,
+    expiredSubs.length,
+    expiringSubs.length,
+    subscriptions.length,
+    navigation,
+  ])
 
   return (
     <View style={styles.root}>
@@ -178,9 +273,15 @@ export function HomeScreen({ onUnauthorized }: Props) {
           <Text style={styles.greet}>{greeting()}</Text>
           <Text style={styles.homeTitle}>Deck</Text>
           <Text style={styles.homeSub}>
-            {queueCount === 0
-              ? `All clear · ${devices.length} devices`
-              : `${queueCount} need you · ${devices.length} devices`}
+            {amanat
+              ? !amanatAuthed
+                ? 'Sign in to Amanat admin'
+                : queueCount === 0
+                  ? `All clear · ${subscriptions.length} accounts`
+                  : `${queueCount} need you · ${subscriptions.length} accounts`
+              : queueCount === 0
+                ? `All clear · ${devices.length} devices`
+                : `${queueCount} need you · ${devices.length} devices`}
           </Text>
         </View>
       </View>
@@ -188,14 +289,34 @@ export function HomeScreen({ onUnauthorized }: Props) {
       <ScrollView
         contentContainerStyle={{ paddingBottom: tabBarHeight(insets.bottom) + 24 }}
         refreshControl={
-          <RefreshControl
-            refreshing={loading && devices.length + pending.length > 0}
-            onRefresh={() => void load()}
-          />
+          amanat && !amanatAuthed ? undefined : (
+            <RefreshControl
+              refreshing={
+                loading &&
+                (amanat
+                  ? subscriptions.length > 0
+                  : devices.length + pending.length > 0)
+              }
+              onRefresh={() => void load()}
+            />
+          )
         }
         showsVerticalScrollIndicator={false}
       >
-        {loading && devices.length === 0 && pending.length === 0 ? (
+        {amanat && !amanatAuthed ? (
+          <View style={styles.pad}>
+            <AmanatLoginForm
+              onLoggedIn={() => {
+                setAmanatAuthed(true)
+                setLoading(true)
+                void load()
+              }}
+            />
+          </View>
+        ) : loading &&
+          (amanat
+            ? subscriptions.length === 0
+            : devices.length === 0 && pending.length === 0) ? (
           <ActivityIndicator color={color.brand} style={{ marginTop: 48 }} />
         ) : (
           <>
@@ -221,24 +342,76 @@ export function HomeScreen({ onUnauthorized }: Props) {
                 label="Workspaces"
                 onPress={() => navigation.navigate('Workspaces')}
               />
-              <Shortcut
-                icon="inbox"
-                label="Requests"
-                onPress={() => navigation.navigate('Workspaces', { inbox: true })}
-              />
-              <Shortcut
-                icon="system-update"
-                label="Releases"
-                onPress={() => navigation.navigate('More', { screen: 'Releases' })}
-              />
-              <Shortcut
-                icon="add"
-                label="Add"
-                onPress={() => navigation.navigate('Workspaces', { create: true })}
-              />
+              {amanat ? (
+                <>
+                  <Shortcut
+                    icon="hourglass-empty"
+                    label="Pending"
+                    onPress={() => navigation.navigate('Workspaces', { filter: 'pending' })}
+                  />
+                  <Shortcut
+                    icon="schedule"
+                    label="Expiring"
+                    onPress={() => navigation.navigate('Workspaces', { filter: 'expiring' })}
+                  />
+                  <Shortcut
+                    icon="map"
+                    label="Zones"
+                    onPress={() => navigation.navigate('More', { screen: 'Zones' })}
+                  />
+                </>
+              ) : (
+                <>
+                  <Shortcut
+                    icon="inbox"
+                    label="Requests"
+                    onPress={() => navigation.navigate('Workspaces', { inbox: true })}
+                  />
+                  <Shortcut
+                    icon="system-update"
+                    label="Releases"
+                    onPress={() => navigation.navigate('More', { screen: 'Releases' })}
+                  />
+                  <Shortcut
+                    icon="add"
+                    label="Add"
+                    onPress={() => navigation.navigate('Workspaces', { create: true })}
+                  />
+                </>
+              )}
             </View>
 
-            {pending.length > 0 ? (
+            {amanat && pendingSubs.length > 0 ? (
+              <>
+                <View style={styles.sectionRow}>
+                  <Text style={[styles.section, { paddingHorizontal: 0, marginTop: 0 }]}>
+                    Up next
+                  </Text>
+                  <Pressable onPress={() => navigation.navigate('Workspaces', { filter: 'pending' })}>
+                    <Text style={styles.seeAll}>See all</Text>
+                  </Pressable>
+                </View>
+                {pendingSubs.slice(0, 3).map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={styles.preview}
+                    onPress={() => navigation.navigate('Workspaces', { filter: 'pending' })}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.previewTitle} numberOfLines={1}>
+                        {item.accountName}
+                      </Text>
+                      <Text style={styles.previewMeta} numberOfLines={1}>
+                        {item.accountType} · {item.tier.toLowerCase()}
+                      </Text>
+                    </View>
+                    <StatusChip label={subscriptionStatusLabel(item)} tone="brand" />
+                  </Pressable>
+                ))}
+              </>
+            ) : null}
+
+            {!amanat && pending.length > 0 ? (
               <>
                 <View style={styles.sectionRow}>
                   <Text style={[styles.section, { paddingHorizontal: 0, marginTop: 0 }]}>

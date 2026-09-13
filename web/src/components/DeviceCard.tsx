@@ -1,18 +1,31 @@
-import { cn, deviceCard, statusBadge, statusDot } from '../lib/ui'
+import { StatusChip } from './ui/Overlay'
+import { AccentTile } from './ui/DeckPrimitives'
+import { deviceCard } from '../lib/ui'
+import {
+  deviceDisplayName,
+  deviceHealth,
+  healthLabel,
+  healthTone,
+  lastSyncLine,
+  tierLabel,
+} from '../lib/device-display'
 import type { DeviceRow } from '../types/device'
 
 export function DeviceCard({ d, onOpen }: { d: DeviceRow; onOpen: (d: DeviceRow) => void }) {
-  const name = d.label?.trim() ? d.label : d.storeName?.trim() ? d.storeName : 'Unnamed Device'
-  const isRevoked = d.revoked
+  const health = deviceHealth(d)
+  const name = deviceDisplayName(d)
   return (
     <button type="button" className={deviceCard} onClick={() => onOpen(d)}>
+      <AccentTile tone={healthTone(health)}>{name.slice(0, 1).toUpperCase()}</AccentTile>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <span className="truncate text-[0.9375rem] font-bold text-label">{name}</span>
+        <span className="flex items-center justify-between gap-2">
+          <span className="truncate text-[0.9375rem] font-bold text-label">{name}</span>
+          <StatusChip label={healthLabel(health)} tone={healthTone(health)} />
+        </span>
         <span className="truncate font-mono text-xs tracking-wide text-on-surface-variant">{d.machineId}</span>
-      </div>
-      <div className={cn(statusBadge(!isRevoked), 'shrink-0')}>
-        <span className={statusDot(!isRevoked)} />
-        {isRevoked ? 'Revoked' : 'Active'}
+        <span className="text-xs text-label-2">
+          {tierLabel(d.tier)} · {lastSyncLine(d)}
+        </span>
       </div>
     </button>
   )

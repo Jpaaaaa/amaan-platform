@@ -3,13 +3,12 @@ import {
   PLATFORM_PRODUCT_BAZAR,
   PLATFORM_PRODUCT_SUFRA,
   type PlatformProductKey,
-} from '../types'
+} from '@shared/platform-product'
 
 export type ProductMeta = {
   key: PlatformProductKey
   label: string
   short: string
-  icon: string
   accent: string
   blurb: string
 }
@@ -19,7 +18,6 @@ export const PRODUCT_META: Record<PlatformProductKey, ProductMeta> = {
     key: PLATFORM_PRODUCT_BAZAR,
     label: 'Bazar One',
     short: 'Bazar',
-    icon: 'storefront',
     accent: '#4F46E5',
     blurb: 'Point of sale · retail',
   },
@@ -27,7 +25,6 @@ export const PRODUCT_META: Record<PlatformProductKey, ProductMeta> = {
     key: PLATFORM_PRODUCT_SUFRA,
     label: 'Sufra POS',
     short: 'Sufra',
-    icon: 'restaurant',
     accent: '#0F766E',
     blurb: 'Restaurants and hospitality',
   },
@@ -35,7 +32,6 @@ export const PRODUCT_META: Record<PlatformProductKey, ProductMeta> = {
     key: PLATFORM_PRODUCT_AMANAT,
     label: 'Amanat',
     short: 'Amanat',
-    icon: 'home-work',
     accent: '#7C3AED',
     blurb: 'Real estate subscriptions',
   },

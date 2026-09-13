@@ -9,7 +9,7 @@ import { ErrorBanner } from '../components/ui/ErrorBanner'
 import { tabBarHeight } from '../constants/layout'
 import { PRODUCT_META } from '../constants/products'
 import { useWorkspace } from '../context/WorkspaceContext'
-import type { PlatformUpdateFileEntry } from '../types'
+import { isAmanatProduct, type PlatformUpdateFileEntry } from '../types'
 import { color, radius, shadow } from '../theme'
 
 type Props = {
@@ -60,6 +60,12 @@ export function ReleasesScreen({ onUnauthorized, onBack }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (isAmanatProduct(product)) {
+      setFiles([])
+      setLoading(false)
+      setError(null)
+      return
+    }
     setLoading(true)
     setError(null)
     const r = await getReleases(product)
