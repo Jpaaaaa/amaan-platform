@@ -1,5 +1,25 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native'
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
 import type { DeviceRow } from '../types'
+import {
+  deviceDisplayName,
+  deviceHealth,
+  deviceMetaLine,
+  healthLabel,
+  lastSyncLine,
+  type DeviceHealth,
+} from '../utils/deviceDisplay'
+import { StatusChip } from './ui/StatusChip'
+import { color, radius, shadow } from '../theme'
+
+const TONE: Record<DeviceHealth, 'success' | 'warning' | 'danger' | 'neutral' | 'brand'> = {
+  active: 'success',
+  expiring: 'warning',
+  expired: 'danger',
+  sync: 'warning',
+  revoked: 'danger',
+  unknown: 'neutral',
+}
 
 type Props = {
   device: DeviceRow
@@ -7,31 +27,25 @@ type Props = {
 }
 
 export function DeviceCard({ device, onPress }: Props) {
-  const name = device.label?.trim() ? device.label : 'Unnamed Device'
-  const active = !device.revoked
-
+  const health = deviceHealth(device)
   return (
     <Pressable
-      style={styles.card}
+      style={({ pressed }) => [styles.card, pressed && styles.pressed]}
       onPress={onPress ? () => onPress(device) : undefined}
       disabled={!onPress}
     >
-      <View style={styles.main}>
+      <View style={styles.top}>
         <Text style={styles.name} numberOfLines={1}>
-          {name}
+          {deviceDisplayName(device)}
         </Text>
-        <Text style={styles.id} numberOfLines={1}>
-          {device.machineId}
-        </Text>
-        <Text style={styles.status} numberOfLines={1}>
-          {device.computedStatus}
-        </Text>
+        <StatusChip label={healthLabel(health)} tone={TONE[health]} dot />
       </View>
-      <View style={[styles.badge, active ? styles.badgeActive : styles.badgeRevoked]}>
-        <View style={[styles.dot, active ? styles.dotActive : styles.dotRevoked]} />
-        <Text style={[styles.badgeText, active ? styles.badgeTextActive : styles.badgeTextRevoked]}>
-          {active ? 'Active' : 'Revoked'}
-        </Text>
+      <Text style={styles.meta} numberOfLines={1}>
+        {deviceMetaLine(device)}
+      </Text>
+      <View style={styles.bottom}>
+        <Text style={styles.sync}>{lastSyncLine(device)}</Text>
+        <MaterialIcons name="chevron-right" size={18} color={color.textTertiary} />
       </View>
     </Pressable>
   )
@@ -39,70 +53,44 @@ export function DeviceCard({ device, onPress }: Props) {
 
 const styles = StyleSheet.create({
   card: {
+    backgroundColor: color.surface,
+    borderRadius: radius.md,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: color.border,
+    ...shadow.card,
+  },
+  pressed: {
+    backgroundColor: color.surfaceMuted,
+  },
+  top: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  main: {
-    flex: 1,
-    minWidth: 0,
-    marginRight: 12,
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
   },
   name: {
+    flex: 1,
     fontSize: 16,
     fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 4,
+    color: color.text,
+    letterSpacing: -0.2,
   },
-  id: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-    color: '#64748b',
-    marginBottom: 4,
+  meta: {
+    fontSize: 13,
+    color: color.textSecondary,
+    fontWeight: '500',
   },
-  status: {
-    fontSize: 11,
-    color: '#94a3b8',
-    textTransform: 'capitalize',
-  },
-  badge: {
+  bottom: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
+    justifyContent: 'space-between',
+    marginTop: 10,
   },
-  badgeActive: {
-    backgroundColor: '#dcfce7',
-  },
-  badgeRevoked: {
-    backgroundColor: '#fee2e2',
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 6,
-  },
-  dotActive: {
-    backgroundColor: '#16a34a',
-  },
-  dotRevoked: {
-    backgroundColor: '#dc2626',
-  },
-  badgeText: {
+  sync: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  badgeTextActive: {
-    color: '#15803d',
-  },
-  badgeTextRevoked: {
-    color: '#b91c1c',
+    color: color.textTertiary,
+    fontWeight: '500',
   },
 })

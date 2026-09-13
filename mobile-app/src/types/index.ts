@@ -66,6 +66,30 @@ export type PlatformUpdateFilesResponse = {
   files: PlatformUpdateFileEntry[]
 }
 
+export type CustomUnit = 'seconds' | 'minutes' | 'hours' | 'days'
+
+export type StoreSnapshot = {
+  storeName: string
+  phone: string | null
+  addressLine: string | null
+  city: string | null
+  storeType: string | null
+  storeTypeOther: string | null
+  ownerContactName: string | null
+}
+
+export type ActivationRequestRow = {
+  productKey: string
+  machineId: string
+  status: 'pending' | 'declined' | 'approved'
+  store: StoreSnapshot
+  requestIp: string | null
+  createdAtMs: number
+  updatedAtMs: number
+  decidedAtMs: number | null
+  declineReason: string | null
+}
+
 export type CreateDeviceInput = {
   product: PlatformProductKey
   machineId: string
@@ -73,6 +97,23 @@ export type CreateDeviceInput = {
   tier: string
   renew: boolean
   notes: string | null
+  customAmount?: string
+  customUnit?: CustomUnit
+  rollingDays?: string
+  rollingMinutes?: string
+}
+
+export type ApproveActivationInput = {
+  product: PlatformProductKey
+  machineId: string
+  tier: string
+  label?: string | null
+  notes?: string | null
+  customAmount?: string
+  customUnit?: CustomUnit
+  rollingDays: string
+  rollingMinutes: string
+  allowRevoked?: boolean
 }
 
 export type PatchDeviceInput = {

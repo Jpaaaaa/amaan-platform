@@ -1,39 +1,77 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native'
-import { createDevice, getDevices, revokeDevice } from '../api/client'
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native'
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import MaterialIcons from 'react-native-vector-icons/MaterialIcons'
+import { getActivationRequests, getDevices } from '../api/client'
 import { DeviceCard } from '../components/DeviceCard'
-import { ProductSwitcher } from '../components/ProductSwitcher'
-import type { DeviceRow, PlatformProductKey } from '../types'
-import { PLATFORM_PRODUCT_BAZAR } from '../types'
+import { DeviceCreateSheet } from '../components/DeviceCreateSheet'
+import { DeviceDetailSheet } from '../components/DeviceDetailSheet'
+import { DeviceEditModal } from '../components/DeviceEditModal'
+import { RequestsSheet } from '../components/RequestsSheet'
+import { WorkspaceSwitcher } from '../components/WorkspaceSwitcher'
+import { AppHeader } from '../components/ui/AppHeader'
+import { EmptyState } from '../components/ui/EmptyState'
+import { ErrorBanner } from '../components/ui/ErrorBanner'
+import { FilterBar } from '../components/ui/FilterBar'
+import { SearchField } from '../components/ui/SearchField'
+import { tabBarHeight } from '../constants/layout'
+import { useWorkspace } from '../context/WorkspaceContext'
+import type { MainTabParamList } from '../navigation/types'
+import type { DeviceRow } from '../types'
+import { deviceHealth, type DeviceHealth } from '../utils/deviceDisplay'
+import { color, radius, shadow } from '../theme'
+
+type FilterKey = 'all' | DeviceHealth
 
 type Props = {
   onUnauthorized: () => void
 }
 
-const TIERS = ['5d', '15d', '1m', '2m', 'lifetime'] as const
-
 export function DevicesScreen({ onUnauthorized }: Props) {
-  const [product, setProduct] = useState<PlatformProductKey>(PLATFORM_PRODUCT_BAZAR)
+  const insets = useSafeAreaInsets()
+  const { product } = useWorkspace()
+  const route = useRoute<RouteProp<MainTabParamList, 'Workspaces'>>()
+  const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>()
   const [devices, setDevices] = useState<DeviceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [machineId, setMachineId] = useState('')
-  const [label, setLabel] = useState('')
-  const [tier, setTier] = useState<string>('1m')
-  const [saving, setSaving] = useState(false)
-  const [detail, setDetail] = useState<DeviceRow | null>(null)
-  const [revoking, setRevoking] = useState(false)
+  const [selected, setSelected] = useState<DeviceRow | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [inboxOpen, setInboxOpen] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filter, setFilter] = useState<FilterKey>('all')
+
+  useEffect(() => {
+    if (route.params?.filter) setFilter(route.params.filter)
+  }, [route.params?.filter])
+
+  useEffect(() => {
+    if (!route.params?.create) return
+    setCreateOpen(true)
+    navigation.setParams({ create: undefined })
+  }, [route.params?.create, navigation])
+
+  useEffect(() => {
+    if (!route.params?.inbox) return
+    setInboxOpen(true)
+    navigation.setParams({ inbox: undefined })
+  }, [route.params?.inbox, navigation])
+
+  const refreshPending = useCallback(async () => {
+    const r = await getActivationRequests(product, 'pending')
+    if (r.ok) setPendingCount(r.requests.length)
+  }, [product])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -49,212 +87,190 @@ export function DevicesScreen({ onUnauthorized }: Props) {
       return
     }
     setDevices(r.devices)
+    setSelected((prev) =>
+      prev ? (r.devices.find((d) => d.machineId === prev.machineId) ?? null) : null,
+    )
   }, [product, onUnauthorized])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  async function onCreate() {
-    if (!machineId.trim()) {
-      setError('Machine ID is required.')
-      return
+  useEffect(() => {
+    void refreshPending()
+    const id = setInterval(() => void refreshPending(), 30_000)
+    return () => clearInterval(id)
+  }, [refreshPending])
+
+  useEffect(() => {
+    setSelected(null)
+    setEditOpen(false)
+    setSearchQuery('')
+  }, [product])
+
+  const counts = useMemo(() => {
+    const c: Record<FilterKey, number> = {
+      all: devices.length,
+      active: 0,
+      expiring: 0,
+      expired: 0,
+      sync: 0,
+      revoked: 0,
+      unknown: 0,
     }
-    setSaving(true)
-    setError(null)
-    const r = await createDevice({
-      product,
-      machineId: machineId.trim(),
-      label: label.trim() || null,
-      tier,
-      renew: false,
-      notes: null,
+    for (const d of devices) c[deviceHealth(d)] += 1
+    return c
+  }, [devices])
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    return devices.filter((d) => {
+      if (filter !== 'all' && deviceHealth(d) !== filter) return false
+      if (!q) return true
+      return (
+        (d.label ?? '').toLowerCase().includes(q) ||
+        d.machineId.toLowerCase().includes(q) ||
+        (d.notes ?? '').toLowerCase().includes(q)
+      )
     })
-    setSaving(false)
-    if (!r.ok) {
-      if (r.unauthorized) {
-        onUnauthorized()
-        return
-      }
-      setError(r.error)
-      return
-    }
-    setModalOpen(false)
-    setMachineId('')
-    setLabel('')
-    setTier('1m')
-    void load()
-  }
-
-  function confirmToggleRevoke(device: DeviceRow) {
-    const nextRevoked = !device.revoked
-    Alert.alert(
-      nextRevoked ? 'Revoke device?' : 'Restore device?',
-      device.machineId,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: nextRevoked ? 'Revoke' : 'Restore',
-          style: nextRevoked ? 'destructive' : 'default',
-          onPress: () => void onToggleRevoke(device, nextRevoked),
-        },
-      ],
-    )
-  }
-
-  async function onToggleRevoke(device: DeviceRow, nextRevoked: boolean) {
-    setRevoking(true)
-    setError(null)
-    const r = await revokeDevice(product, device.machineId, nextRevoked)
-    setRevoking(false)
-    if (!r.ok) {
-      if (r.unauthorized) {
-        onUnauthorized()
-        return
-      }
-      setError(r.error)
-      return
-    }
-    setDetail(null)
-    void load()
-  }
+  }, [devices, filter, searchQuery])
 
   return (
     <View style={styles.root}>
-      <ProductSwitcher value={product} onChange={setProduct} />
+      <AppHeader
+        title="Workspaces"
+        subtitle={`${devices.length} licensed devices`}
+      />
+      <View style={styles.toolbar}>
+        <WorkspaceSwitcher />
+        <View style={styles.gap} />
+        <Pressable
+          onPress={() => setInboxOpen(true)}
+          style={({ pressed }) => [styles.requestsBtn, pressed && { opacity: 0.92 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Requests"
+        >
+          <View style={styles.requestsIcon}>
+            <MaterialIcons name="inbox" size={18} color={color.brandText} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.requestsTitle}>Requests</Text>
+            <Text style={styles.requestsMeta}>
+              {pendingCount === 0
+                ? 'No pending activations'
+                : pendingCount === 1
+                  ? '1 pending activation'
+                  : `${pendingCount} pending activations`}
+            </Text>
+          </View>
+          {pendingCount > 0 ? (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{pendingCount}</Text>
+            </View>
+          ) : null}
+          <MaterialIcons name="chevron-right" size={20} color={color.textTertiary} />
+        </Pressable>
+        <View style={styles.gap} />
+        <SearchField
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Search name or machine ID"
+        />
+        <View style={styles.gap} />
+        <FilterBar
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { key: 'all', label: 'All', count: counts.all },
+            { key: 'active', label: 'Active', count: counts.active },
+            { key: 'expiring', label: 'Expiring', count: counts.expiring },
+            { key: 'expired', label: 'Expired', count: counts.expired },
+            { key: 'sync', label: 'Sync', count: counts.sync },
+            { key: 'revoked', label: 'Revoked', count: counts.revoked },
+          ]}
+        />
+      </View>
 
-      {loading ? (
-        <ActivityIndicator style={styles.loader} color="#0a6cff" />
+      {loading && devices.length === 0 ? (
+        <View style={styles.loader}>
+          <ActivityIndicator size="large" color={color.brand} />
+        </View>
       ) : (
         <FlatList
-          data={devices}
+          data={filtered}
           keyExtractor={(d) => d.machineId}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingBottom: tabBarHeight(insets.bottom) + 80,
+          }}
+          ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           renderItem={({ item }) => (
-            <DeviceCard
-              device={item}
-              onPress={(d) => {
-                setError(null)
-                setDetail(d)
-              }}
-            />
+            <DeviceCard device={item} onPress={(d) => setSelected(d)} />
           )}
           ListEmptyComponent={
-            <Text style={styles.empty}>No devices registered for this product.</Text>
+            <EmptyState
+              icon={searchQuery || filter !== 'all' ? 'search-off' : 'devices-other'}
+              title={searchQuery ? 'No matches' : 'No devices'}
+              body={
+                searchQuery
+                  ? `Nothing matches “${searchQuery}”.`
+                  : 'Activate a device to get started.'
+              }
+            />
           }
           refreshing={loading}
           onRefresh={() => void load()}
         />
       )}
 
-      {error && !detail ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <View style={[styles.error, { bottom: tabBarHeight(insets.bottom) + 72 }]}>
+          <ErrorBanner message={error} onDismiss={() => setError(null)} />
+        </View>
+      ) : null}
 
-      <Pressable style={styles.fab} onPress={() => setModalOpen(true)}>
-        <Text style={styles.fabText}>+</Text>
+      <Pressable
+        style={[styles.fab, { bottom: tabBarHeight(insets.bottom) + 12 }]}
+        onPress={() => setCreateOpen(true)}
+        accessibilityLabel="Add device"
+      >
+        <MaterialIcons name="add" size={26} color="#fff" />
       </Pressable>
 
-      <Modal visible={detail != null} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Device</Text>
-            {detail ? (
-              <>
-                <Text style={styles.detailName}>
-                  {detail.label?.trim() ? detail.label : 'Unnamed Device'}
-                </Text>
-                <Text style={styles.detailId}>{detail.machineId}</Text>
-                <Text style={styles.detailMeta}>
-                  {detail.tier} · {detail.computedStatus}
-                  {detail.revoked ? ' · revoked' : ''}
-                </Text>
-              </>
-            ) : null}
-
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setDetail(null)}>
-                <Text style={styles.cancelText}>Close</Text>
-              </Pressable>
-              <Pressable
-                style={[
-                  styles.saveBtn,
-                  detail?.revoked ? styles.restoreBtn : styles.revokeBtn,
-                  revoking && styles.saveBtnDisabled,
-                ]}
-                onPress={() => {
-                  if (detail) confirmToggleRevoke(detail)
-                }}
-                disabled={revoking || !detail}
-              >
-                {revoking ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveText}>
-                    {detail?.revoked ? 'Restore' : 'Revoke'}
-                  </Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={modalOpen} animationType="slide" transparent>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Add device</Text>
-
-            <Text style={styles.fieldLabel}>Machine ID</Text>
-            <TextInput
-              style={styles.input}
-              value={machineId}
-              onChangeText={setMachineId}
-              autoCapitalize="none"
-              placeholder="DEVICE-001"
-              placeholderTextColor="#94a3b8"
-            />
-
-            <Text style={styles.fieldLabel}>Label (optional)</Text>
-            <TextInput
-              style={styles.input}
-              value={label}
-              onChangeText={setLabel}
-              placeholder="Front counter"
-              placeholderTextColor="#94a3b8"
-            />
-
-            <Text style={styles.fieldLabel}>Tier</Text>
-            <View style={styles.tierRow}>
-              {TIERS.map((t) => (
-                <Pressable
-                  key={t}
-                  style={[styles.tierChip, tier === t && styles.tierChipActive]}
-                  onPress={() => setTier(t)}
-                >
-                  <Text style={[styles.tierText, tier === t && styles.tierTextActive]}>{t}</Text>
-                </Pressable>
-              ))}
-            </View>
-
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelBtn} onPress={() => setModalOpen(false)}>
-                <Text style={styles.cancelText}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-                onPress={() => void onCreate()}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveText}>Create</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <DeviceDetailSheet
+        visible={selected != null && !editOpen}
+        device={selected}
+        product={product}
+        onClose={() => setSelected(null)}
+        onEdit={() => setEditOpen(true)}
+        onChanged={() => void load()}
+        onUnauthorized={onUnauthorized}
+      />
+      <DeviceEditModal
+        visible={editOpen && selected != null}
+        device={selected}
+        product={product}
+        onClose={() => setEditOpen(false)}
+        onSaved={() => {
+          setEditOpen(false)
+          void load()
+        }}
+        onUnauthorized={onUnauthorized}
+      />
+      <DeviceCreateSheet
+        visible={createOpen}
+        product={product}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => void load()}
+        onUnauthorized={onUnauthorized}
+      />
+      <RequestsSheet
+        visible={inboxOpen}
+        onClose={() => setInboxOpen(false)}
+        onUnauthorized={onUnauthorized}
+        onChanged={() => void refreshPending()}
+      />
     </View>
   )
 }
@@ -262,150 +278,83 @@ export function DevicesScreen({ onUnauthorized }: Props) {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    padding: 16,
-    backgroundColor: '#f8fafc',
+    backgroundColor: color.bg,
+  },
+  toolbar: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  gap: {
+    height: 10,
+  },
+  requestsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: color.surface,
+    borderWidth: 1,
+    borderColor: color.border,
+    borderRadius: radius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    minHeight: 56,
+    ...shadow.card,
+  },
+  requestsIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: color.brandMuted,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  requestsTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: color.text,
+  },
+  requestsMeta: {
+    fontSize: 12,
+    color: color.textSecondary,
+    marginTop: 2,
+  },
+  badge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: color.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: color.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   loader: {
-    marginTop: 32,
-  },
-  empty: {
-    textAlign: 'center',
-    color: '#64748b',
-    marginTop: 24,
-    fontSize: 14,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   error: {
-    color: '#dc2626',
-    marginTop: 8,
-    fontSize: 13,
+    position: 'absolute',
+    left: 16,
+    right: 16,
   },
   fab: {
     position: 'absolute',
-    right: 20,
-    bottom: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#0a6cff',
+    right: 16,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: color.brand,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
-  },
-  fabText: {
-    color: '#fff',
-    fontSize: 28,
-    fontWeight: '300',
-    marginTop: -2,
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(15,23,42,0.45)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: 32,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginBottom: 16,
-    color: '#0f172a',
-  },
-  detailName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#0f172a',
-    marginBottom: 6,
-  },
-  detailId: {
-    fontSize: 12,
-    fontFamily: 'monospace',
-    color: '#64748b',
-    marginBottom: 6,
-  },
-  detailMeta: {
-    fontSize: 13,
-    color: '#475569',
-    marginBottom: 16,
-    textTransform: 'capitalize',
-  },
-  revokeBtn: {
-    backgroundColor: '#dc2626',
-  },
-  restoreBtn: {
-    backgroundColor: '#15803d',
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748b',
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 12,
-    fontSize: 15,
-    color: '#0f172a',
-  },
-  tierRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 20,
-  },
-  tierChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: '#f1f5f9',
-  },
-  tierChipActive: {
-    backgroundColor: '#dbeafe',
-  },
-  tierText: {
-    fontSize: 13,
-    color: '#475569',
-    fontWeight: '600',
-  },
-  tierTextActive: {
-    color: '#0a6cff',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-  },
-  cancelText: {
-    color: '#475569',
-    fontWeight: '600',
-  },
-  saveBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
-    backgroundColor: '#0a6cff',
-  },
-  saveBtnDisabled: {
-    opacity: 0.6,
-  },
-  saveText: {
-    color: '#fff',
-    fontWeight: '700',
+    shadowColor: '#111827',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
   },
 })

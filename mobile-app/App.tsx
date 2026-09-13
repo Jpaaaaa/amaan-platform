@@ -1,17 +1,19 @@
 import { NavigationContainer } from '@react-navigation/native'
-import { StatusBar, useColorScheme } from 'react-native'
+import { StatusBar } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import { WorkspaceProvider } from './src/context/WorkspaceContext'
 import { AppNavigator } from './src/navigation/AppNavigator'
+import { color } from './src/theme'
 
 function App() {
-  const isDarkMode = useColorScheme() === 'dark'
-
   return (
     <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
+      <StatusBar barStyle="dark-content" backgroundColor={color.bg} />
+      <WorkspaceProvider>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </WorkspaceProvider>
     </SafeAreaProvider>
   )
 }
